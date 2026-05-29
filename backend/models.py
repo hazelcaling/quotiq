@@ -121,7 +121,7 @@ class LineItem(db.Model):
     surcharge = db.Column(db.Numeric(10, 2), default=0)
 
     # ✅ ONLY FFA or FOB
-    terms = db.Column(db.String(20), default="FFA")
+    terms = db.Column(db.String(20), default="FOB")
 
     # Calculated
     net_cost = db.Column(db.Numeric(10, 2), default=0)
