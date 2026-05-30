@@ -689,14 +689,21 @@ async function saveQuote(e) {
   setQuoteBusy(true);
   setQuoteMessage(editingQuoteId ? "Updating quote..." : "Saving new quote...");
 
+  const payload = {
+  ...quoteForm,
+  bid_date: quoteForm.bid_date || "N/A",
+};
+
   try {
     if (editingQuoteId) {
-      const res = await axios.put(`${API}/quotes/${editingQuoteId}`, quoteForm);
+      // const res = await axios.put(`${API}/quotes/${editingQuoteId}`, quoteForm);
+      const res = await axios.put(`${API}/quotes/${editingQuoteId}`, payload);
       setActiveQuoteId(res.data.id);
       setEditingQuoteId(null);
       setQuoteMessage("Quote updated successfully.");
     } else {
-      const res = await axios.post(`${API}/quotes`, quoteForm);
+      // const res = await axios.post(`${API}/quotes`, quoteForm);
+      const res = await axios.post(`${API}/quotes`, payload);
       const newQuoteId = res.data.id;
 
       for (const item of draftCopiedLineItems) {
@@ -2133,7 +2140,7 @@ const current = contactToArray(quoteForm.contact);
   />
 </label>
 
-        <label>
+        {/* <label>
           Bid Due Date
           <input
             name="bid_date"
@@ -2141,7 +2148,18 @@ const current = contactToArray(quoteForm.contact);
             value={quoteForm.bid_date}
             onChange={updateForm(setQuoteForm)}
           />
-        </label>
+        </label> */}
+
+        
+<label>
+  Bid Due Date (Leave blank if none)
+  <input
+    type="date"
+    name="bid_date"
+    value={quoteForm.bid_date === "N/A" ? "" : quoteForm.bid_date}
+    onChange={updateForm(setQuoteForm)}
+  />
+</label>
 
         <label>
           Status
