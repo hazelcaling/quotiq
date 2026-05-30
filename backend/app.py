@@ -353,6 +353,22 @@ def delete_quote(id):
     db.session.commit()
     return jsonify({"message": "Quote deleted"})
 
+@app.route("/locations")
+def get_locations():
+    search = request.args.get("search", "").strip()
+
+    query = (
+        db.session.query(Quote.location)
+        .filter(Quote.location.isnot(None))
+        .filter(Quote.location != "")
+    )
+
+    if search:
+        query = query.filter(Quote.location.ilike(f"%{search}%"))
+
+    locations = query.distinct().limit(10).all()
+
+    return jsonify([x[0] for x in locations])
 
 # ---------------------------
 # Line Items

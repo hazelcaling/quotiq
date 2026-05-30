@@ -248,6 +248,7 @@ const [quoteMessage, setQuoteMessage] = useState("");
 const [lineItemBusy, setLineItemBusy] = useState(false);
 const [lineItemMessage, setLineItemMessage] = useState("");
 const [deletingLineItemId, setDeletingLineItemId] = useState(null);
+const [locationResults, setLocationResults] = useState([]);
 const dashPageSize = 10;
 
   const activeQuote = quotes.find((q) => q.id === activeQuoteId);
@@ -1158,6 +1159,34 @@ async function addNotesAsSeparateLineItem() {
     ]);
   }
 
+async function searchQuoteLocations(term) {
+  setQuoteForm((prev) => ({
+    ...prev,
+    location: term,
+  }));
+
+  if (!term || term.length < 2) {
+    setLocationResults([]);
+    return;
+  }
+
+  const res = await axios.get(`${API}/locations`, {
+    params: { search: term },
+  });
+
+  setLocationResults(res.data);
+}
+
+function selectQuoteLocation(location) {
+  setQuoteForm((prev) => ({
+    ...prev,
+    location,
+  }));
+
+  setLocationResults([]);
+  setLocationSearchMessage("");
+}
+
   async function saveCrud(e, endpoint, form, editingId, reset, refresh, setEditing) {
     e.preventDefault();
     if (editingId) await axios.put(`${API}/${endpoint}/${editingId}`, form);
@@ -2007,15 +2036,33 @@ const totalDashPages = Math.ceil(quotes.length / dashPageSize) || 1;
           </div>
         </label>
 
-        <label>
-          Location
-          <input
-            name="location"
-            placeholder="Location"
-            value={quoteForm.location}
-            onChange={updateForm(setQuoteForm)}
-          />
-        </label>
+<label>
+  Location
+  <div className="lookup-field">
+    <input
+      name="location"
+      placeholder="e.g. San Francisco, CA"
+      value={quoteForm.location}
+      onChange={(e) => searchQuoteLocations(e.target.value)}
+    />
+
+    {locationResults.length > 0 && (
+      <div className="lookup-results">
+        {locationResults.slice(0, 8).map((location) => (
+          <button
+            type="button"
+            key={location}
+            className="lookup-option"
+            onClick={() => selectQuoteLocation(location)}
+          >
+            <strong>{location}</strong>
+          </button>
+        ))}
+      </div>
+    )}
+
+  </div>
+</label>
 
         {/* <label>
           Outside Sales Contact(s)
