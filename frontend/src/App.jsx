@@ -1006,6 +1006,29 @@ function pasteCopiedQuote() {
     (note, index, arr) => index === arr.findIndex((x) => x.id === note.id)
   );
 
+  // keep only notes that match this line item
+libraryNotes = libraryNotes.filter((note) => {
+  const categoryMatch =
+    note.category &&
+    item.item &&
+    note.category.trim().toLowerCase() ===
+      item.item.trim().toLowerCase();
+
+  const seriesMatch =
+    note.series &&
+    item.series &&
+    note.series.trim().toLowerCase() ===
+      item.series.trim().toLowerCase();
+
+  const modelMatch =
+    note.model &&
+    item.model &&
+    note.model.trim().toLowerCase() ===
+      item.model.trim().toLowerCase();
+
+  return categoryMatch || seriesMatch || modelMatch;
+});
+
   const selectedNotes = item.notes_selected || [];
   const merged = [];
 
