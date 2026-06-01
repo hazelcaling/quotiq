@@ -1769,6 +1769,7 @@ const totalDashPages = Math.ceil(quotes.length / dashPageSize) || 1;
     <option>Not Started</option>
     <option>In Progress</option>
     <option>Bid Submitted</option>
+        <option>Bid Submitted - to Sales</option>
     <option>Not Bidding</option>
     <option>Won</option>
     <option>Lost</option>
@@ -2192,8 +2193,10 @@ const current = contactToArray(quoteForm.contact);
             onChange={updateForm(setQuoteForm)}
           >
             <option>Not Started</option>
+            <option>Pending Instruction from Sales</option>
             <option>In Progress</option>
             <option>Bid Submitted</option>
+            <option>Bid Submitted - to Sales</option>
             <option>Not Bidding</option>
             <option>Won</option>
             <option>Lost</option>
