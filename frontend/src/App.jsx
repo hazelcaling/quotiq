@@ -986,7 +986,7 @@ function pasteCopiedQuote() {
 
   const terms = [
     clean(item.type),
-    clean(item.category),
+    clean(item.item),
     clean(item.series),
     clean(item.model),
   ].filter(Boolean);
