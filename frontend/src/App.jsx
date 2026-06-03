@@ -2295,7 +2295,7 @@ const current = contactToArray(quoteForm.contact);
     className="btn secondary"
     onClick={clearQuoteForm}
   >
-    New Quote / Clear Form
+    {editingQuoteId ? "Cancel Edit" : "New Quote / Clear Form"}
   </button>
 <button
   type="button"
