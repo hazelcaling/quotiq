@@ -503,6 +503,26 @@ function uniqueCompanyValues(field, term) {
     .slice(0, 8);
 }
 
+function uniqueNoteValues(field, term) {
+  if (!term || term.length < 1) return [];
+
+  const seen = new Set();
+
+  return notes
+    .map((n) => String(n[field] || "").trim())
+    .filter(Boolean)
+    .filter((value) =>
+      value.toLowerCase().includes(term.toLowerCase())
+    )
+    .filter((value) => {
+      const key = value.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 8);
+}
+
 function selectQuoteProject(project) {
   setQuoteForm((prev) => ({
     ...prev,
@@ -2881,6 +2901,12 @@ const current = contactToArray(quoteForm.contact);
   );
 }
 
+const useNoteLookup =
+  type === "notes" &&
+  ["item", "type", "category", "series", "model"].includes(field);
+
+  
+
     const placeholder =
       type === "products" || type === "notes"
         ? ({
@@ -2969,6 +2995,88 @@ if (useCompanyLookup) {
     </div>
   );
 }
+
+if (useNoteLookup) {
+  const suggestions = uniqueNoteValues(field, config.form[field]);
+
+  return (
+    <div key={field} className="lookup-field">
+      <input
+        name={field}
+        placeholder={placeholder}
+        value={config.form[field] || ""}
+        onChange={updateForm(config.setForm)}
+      />
+
+      {suggestions.length > 0 && (
+        <div className="lookup-results">
+          {suggestions.map((value) => (
+            <button
+              type="button"
+              key={value}
+              className="lookup-option"
+              onClick={() =>
+                config.setForm((prev) => ({
+                  ...prev,
+                  [field]: value,
+                }))
+              }
+            >
+              <strong>{value}</strong>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+if (useProductLookup) {
+  const suggestions = uniqueProductValues(field, config.form[field]);
+
+  return (
+    <div key={field} className="lookup-field">
+      <input
+        name={field}
+        placeholder={placeholder}
+        value={config.form[field] || ""}
+        onChange={updateForm(config.setForm)}
+      />
+
+      {suggestions.length > 0 && (
+        <div className="lookup-results">
+          {suggestions.map((value) => (
+            <button
+              type="button"
+              key={value}
+              className="lookup-option"
+              onClick={() =>
+                config.setForm((prev) => ({
+                  ...prev,
+                  [field]: value,
+                }))
+              }
+            >
+              <strong>{value}</strong>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+return (
+  <input
+    key={field}
+    name={field}
+    placeholder={placeholder}
+    value={config.form[field] || ""}
+    onChange={updateForm(config.setForm)}
+  />
+);
+
+
 
     if (useProductLookup) {
       const suggestions = uniqueProductValues(field, config.form[field]);
