@@ -249,6 +249,7 @@ const [lineItemBusy, setLineItemBusy] = useState(false);
 const [lineItemMessage, setLineItemMessage] = useState("");
 const [deletingLineItemId, setDeletingLineItemId] = useState(null);
 const [locationResults, setLocationResults] = useState([]);
+const [activeLookupField, setActiveLookupField] = useState(null);
 const dashPageSize = 10;
 
   const activeQuote = quotes.find((q) => q.id === activeQuoteId);
@@ -2905,6 +2906,20 @@ const useNoteLookup =
   type === "notes" &&
   ["item", "type", "category", "series", "model"].includes(field);
 
+  const noteLinkFields = ["type", "category", "series", "model"];
+
+const activeNoteLinkField =
+  type === "notes"
+    ? noteLinkFields.find(
+        (f) => String(config.form[f] || "").trim()
+      )
+    : null;
+
+const isDisabledNoteLinkField =
+  type === "notes" &&
+  noteLinkFields.includes(field) &&
+  activeNoteLinkField &&
+  activeNoteLinkField !== field;
   
 
     const placeholder =
@@ -2970,22 +2985,26 @@ if (useCompanyLookup) {
         name={field}
         placeholder={placeholder}
         value={config.form[field] || ""}
-        onChange={updateForm(config.setForm)}
+        onChange={(e) => {
+  setActiveLookupField(`companies-${field}`);
+  updateForm(config.setForm)(e);
+}}
       />
 
-      {suggestions.length > 0 && (
+      {activeLookupField === `companies-${field}` && suggestions.length > 0 && (
         <div className="lookup-results">
           {suggestions.map((value) => (
             <button
               type="button"
               key={value}
               className="lookup-option"
-              onClick={() =>
-                config.setForm((prev) => ({
-                  ...prev,
-                  [field]: value,
-                }))
-              }
+ onClick={() => {
+  config.setForm((prev) => ({
+    ...prev,
+    [field]: value,
+  }));
+  setActiveLookupField(null);
+}}
             >
               <strong>{value}</strong>
             </button>
@@ -3001,26 +3020,36 @@ if (useNoteLookup) {
 
   return (
     <div key={field} className="lookup-field">
-      <input
-        name={field}
-        placeholder={placeholder}
-        value={config.form[field] || ""}
-        onChange={updateForm(config.setForm)}
-      />
+<input
+  name={field}
+  placeholder={placeholder}
+  value={config.form[field] || ""}
+  disabled={isDisabledNoteLinkField}
+  title={
+    isDisabledNoteLinkField
+      ? "Only one filter may be used between Type, Category, Series, and Model."
+      : ""
+  }
+  onChange={(e) => {
+  setActiveLookupField(`notes-${field}`);
+  updateForm(config.setForm)(e);
+}}
+/>
 
-      {suggestions.length > 0 && (
+      {activeLookupField === `notes-${field}` && suggestions.length > 0 && (
         <div className="lookup-results">
           {suggestions.map((value) => (
             <button
               type="button"
               key={value}
               className="lookup-option"
-              onClick={() =>
-                config.setForm((prev) => ({
-                  ...prev,
-                  [field]: value,
-                }))
-              }
+    onClick={() => {
+  config.setForm((prev) => ({
+    ...prev,
+    [field]: value,
+  }));
+  setActiveLookupField(null);
+}}
             >
               <strong>{value}</strong>
             </button>
@@ -3040,22 +3069,26 @@ if (useProductLookup) {
         name={field}
         placeholder={placeholder}
         value={config.form[field] || ""}
-        onChange={updateForm(config.setForm)}
+        onChange={(e) => {
+  setActiveLookupField(`products-${field}`);
+  updateForm(config.setForm)(e);
+}}
       />
 
-      {suggestions.length > 0 && (
+      {activeLookupField === `products-${field}` && suggestions.length > 0 && (
         <div className="lookup-results">
           {suggestions.map((value) => (
             <button
               type="button"
               key={value}
               className="lookup-option"
-              onClick={() =>
-                config.setForm((prev) => ({
-                  ...prev,
-                  [field]: value,
-                }))
-              }
+onClick={() => {
+  config.setForm((prev) => ({
+    ...prev,
+    [field]: value,
+  }));
+  setActiveLookupField(null);
+}}
             >
               <strong>{value}</strong>
             </button>
@@ -3067,13 +3100,19 @@ if (useProductLookup) {
 }
 
 return (
-  <input
-    key={field}
-    name={field}
-    placeholder={placeholder}
-    value={config.form[field] || ""}
-    onChange={updateForm(config.setForm)}
-  />
+<input
+  key={field}
+  name={field}
+  placeholder={placeholder}
+  value={config.form[field] || ""}
+  disabled={isDisabledNoteLinkField}
+  title={
+    isDisabledNoteLinkField
+      ? "Only one filter may be used between Type, Category, Series, and Model."
+      : ""
+  }
+  onChange={updateForm(config.setForm)}
+/>
 );
 
 
