@@ -2323,11 +2323,22 @@ const current = contactToArray(quoteForm.contact);
         {activeQuote ? (
 <>
   <p>
+    <b>Date:</b>   {quoteForm.date
+    ? new Date(quoteForm.date).toLocaleDateString("en-US")
+    : ""}
+  </p>
+  <p>
     <b>Quote#:</b> {activeQuote.quote_number}
+  </p>
+    <p>
+    <b>Contact:</b> {formatContact(activeQuote.contact)}
   </p>
 
   <p>
     <b>Project:</b> {activeQuote.project || "-"}
+  </p>
+    <p>
+    <b>Bid Date:</b> {activeQuote.bid_date || "-"}
   </p>
 
   <p>
@@ -2337,10 +2348,11 @@ const current = contactToArray(quoteForm.contact);
   <p>
     <b>Attn To:</b> {activeQuote.attention || "-"}
   </p>
-
-  <p>
-    <b>Sales:</b> {formatContact(activeQuote.contact)}
+    <p>
+    <b>Location:</b> {activeQuote.location || "-"}
   </p>
+
+
 
   <p>
     <b>Total:</b> {money(activeQuote.total)}
