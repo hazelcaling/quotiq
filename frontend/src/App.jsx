@@ -2355,11 +2355,21 @@ const current = contactToArray(quoteForm.contact);
                   className="lookup-option"
                   onClick={() => selectLineProduct(p)}
                 >
-                  <strong>{p.model || p.part_number || p.name}</strong>
-                  <span>
-                    {p.vendor || ""} {p.series || ""}
-                  </span>
-                  <small>{p.description || ""}</small>
+                  <strong>
+  {[p.category, p.part_number, p.model, p.name]
+    .filter(Boolean)
+    .join(" | ")}
+</strong>
+<span>
+  {[p.vendor, p.series]
+    .filter(Boolean)
+    .join(" | ")}
+</span>
+
+<small>
+  {p.description?.substring(0, 80)}
+  {p.description?.length > 80 ? "..." : ""}
+</small>
                 </button>
               ))}
             </div>
