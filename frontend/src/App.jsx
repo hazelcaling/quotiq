@@ -461,6 +461,48 @@ async function searchQuoteProjects(term) {
   }
 }
 
+function uniqueProductValues(field, term) {
+  if (!term || term.length < 1) return [];
+
+  const seen = new Set();
+
+  return products
+    .map((p) => String(p[field] || "").trim())
+    .filter(Boolean)
+    .filter((value) =>
+      value.toLowerCase().includes(term.toLowerCase())
+    )
+    .filter((value) => {
+      const key = value.toLowerCase();
+
+      if (seen.has(key)) return false;
+
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 8);
+}
+
+function uniqueCompanyValues(field, term) {
+  if (!term || term.length < 1) return [];
+
+  const seen = new Set();
+
+  return companies
+    .map((c) => String(c[field] || "").trim())
+    .filter(Boolean)
+    .filter((value) =>
+      value.toLowerCase().includes(term.toLowerCase())
+    )
+    .filter((value) => {
+      const key = value.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 8);
+}
+
 function selectQuoteProject(project) {
   setQuoteForm((prev) => ({
     ...prev,
@@ -2722,7 +2764,7 @@ const current = contactToArray(quoteForm.contact);
               {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           )}
-          {config.fields.filter((f) => !(type === "contacts" && f === "company_id")).map((field) =>
+          {/* {config.fields.filter((f) => !(type === "contacts" && f === "company_id")).map((field) =>
             field === "description" || field === "notes" || field === "text" ? (
               <textarea key={field} name={field} placeholder={field} value={config.form[field] || ""} onChange={updateForm(config.setForm)} />
             ) : field === "note_type" ? (
@@ -2750,7 +2792,229 @@ const current = contactToArray(quoteForm.contact);
   onChange={updateForm(config.setForm)}
 />
             )
+          )} */}
+          {config.fields
+  .filter((f) => !(type === "contacts" && f === "company_id"))
+  .map((field) => {
+    const isLongField =
+      field === "description" || field === "notes" || field === "text";
+
+    const useProductLookup =
+      type === "products" &&
+      [
+        "name",
+        "tag",
+        "vendor",
+        "manufacturer",
+        "category",
+        "type",
+        "series",
+        "model",
+        "part_number",
+      ].includes(field);
+
+      const useCompanyLookup =
+  type === "companies" &&
+  ["name", "city"].includes(field);
+
+  if (type === "companies" && field === "state") {
+  return (
+    <select
+      key={field}
+      name={field}
+      value={config.form[field] || ""}
+      onChange={updateForm(config.setForm)}
+    >
+      <option value="">Select State</option>
+
+      <option value="AL">AL</option>
+      <option value="AK">AK</option>
+      <option value="AZ">AZ</option>
+      <option value="AR">AR</option>
+      <option value="CA">CA</option>
+      <option value="CO">CO</option>
+      <option value="CT">CT</option>
+      <option value="DE">DE</option>
+      <option value="FL">FL</option>
+      <option value="GA">GA</option>
+      <option value="HI">HI</option>
+      <option value="ID">ID</option>
+      <option value="IL">IL</option>
+      <option value="IN">IN</option>
+      <option value="IA">IA</option>
+      <option value="KS">KS</option>
+      <option value="KY">KY</option>
+      <option value="LA">LA</option>
+      <option value="ME">ME</option>
+      <option value="MD">MD</option>
+      <option value="MA">MA</option>
+      <option value="MI">MI</option>
+      <option value="MN">MN</option>
+      <option value="MS">MS</option>
+      <option value="MO">MO</option>
+      <option value="MT">MT</option>
+      <option value="NE">NE</option>
+      <option value="NV">NV</option>
+      <option value="NH">NH</option>
+      <option value="NJ">NJ</option>
+      <option value="NM">NM</option>
+      <option value="NY">NY</option>
+      <option value="NC">NC</option>
+      <option value="ND">ND</option>
+      <option value="OH">OH</option>
+      <option value="OK">OK</option>
+      <option value="OR">OR</option>
+      <option value="PA">PA</option>
+      <option value="RI">RI</option>
+      <option value="SC">SC</option>
+      <option value="SD">SD</option>
+      <option value="TN">TN</option>
+      <option value="TX">TX</option>
+      <option value="UT">UT</option>
+      <option value="VT">VT</option>
+      <option value="VA">VA</option>
+      <option value="WA">WA</option>
+      <option value="WV">WV</option>
+      <option value="WI">WI</option>
+      <option value="WY">WY</option>
+    </select>
+  );
+}
+
+    const placeholder =
+      type === "products" || type === "notes"
+        ? ({
+            name: "Product Name e.g. Non-Condensing Hydronic Heating Boiler",
+            category: "Category e.g. Boiler, Pump, Tank, Startup, Notes, Freight, Adders, Parts",
+            type: "Type e.g. Condensing, End Suction, Storage Tank",
+          }[field] || field)
+        : field;
+
+    if (isLongField) {
+      return (
+        <textarea
+          key={field}
+          name={field}
+          placeholder={placeholder}
+          value={config.form[field] || ""}
+          onChange={updateForm(config.setForm)}
+        />
+      );
+    }
+
+    if (field === "note_type") {
+      return (
+        <select
+          key={field}
+          name={field}
+          value={config.form[field] || "standard"}
+          onChange={updateForm(config.setForm)}
+        >
+          <option value="standard">standard</option>
+          <option value="additional">additional</option>
+          <option value="exception">exception</option>
+          <option value="internal">internal</option>
+        </select>
+      );
+    }
+
+    if (type === "companies" && field === "type") {
+  return (
+    <select
+      key={field}
+      name={field}
+      value={config.form[field] || ""}
+      onChange={updateForm(config.setForm)}
+    >
+      <option value="">Select Type</option>
+      <option value="vendor">vendor</option>
+      <option value="contractor">contractor</option>
+      <option value="wholesaler">wholesaler</option>
+      <option value="end-user">end-user</option>
+    </select>
+  );
+}
+
+if (useCompanyLookup) {
+  const suggestions = uniqueCompanyValues(field, config.form[field]);
+
+  return (
+    <div key={field} className="lookup-field">
+      <input
+        name={field}
+        placeholder={placeholder}
+        value={config.form[field] || ""}
+        onChange={updateForm(config.setForm)}
+      />
+
+      {suggestions.length > 0 && (
+        <div className="lookup-results">
+          {suggestions.map((value) => (
+            <button
+              type="button"
+              key={value}
+              className="lookup-option"
+              onClick={() =>
+                config.setForm((prev) => ({
+                  ...prev,
+                  [field]: value,
+                }))
+              }
+            >
+              <strong>{value}</strong>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+    if (useProductLookup) {
+      const suggestions = uniqueProductValues(field, config.form[field]);
+
+      return (
+        <div key={field} className="lookup-field">
+          <input
+            name={field}
+            placeholder={placeholder}
+            value={config.form[field] || ""}
+            onChange={updateForm(config.setForm)}
+          />
+
+          {suggestions.length > 0 && (
+            <div className="lookup-results">
+              {suggestions.map((value) => (
+                <button
+                  type="button"
+                  key={value}
+                  className="lookup-option"
+                  onClick={() =>
+                    config.setForm((prev) => ({
+                      ...prev,
+                      [field]: value,
+                    }))
+                  }
+                >
+                  <strong>{value}</strong>
+                </button>
+              ))}
+            </div>
           )}
+        </div>
+      );
+    }
+
+    return (
+      <input
+        key={field}
+        name={field}
+        placeholder={placeholder}
+        value={config.form[field] || ""}
+        onChange={updateForm(config.setForm)}
+      />
+    );
+  })}
           <button className="btn primary">{config.editingId ? "Update" : "Add"}</button>
           {config.editingId && <button type="button" className="btn secondary" onClick={() => { config.setEditingId(null); config.setForm(config.empty); }}>Cancel</button>}
         </form>
