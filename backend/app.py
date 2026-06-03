@@ -1,9 +1,12 @@
 from flask import Flask, request, jsonify
 from datetime import datetime
 from flask_cors import CORS
+from flask import session
+from werkzeug.security import check_password_hash
 from sqlalchemy import or_
 from models import (
     db,
+    User,
     Quote,
     LineItem,
     Product,
@@ -17,7 +20,14 @@ from config import Config
 app = Flask(__name__)
 app.config.from_object(Config)
 
-CORS(app)
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="None",
+    SESSION_COOKIE_SECURE=True,
+)
+
+# CORS(app)
+CORS(app, supports_credentials=True)
 db.init_app(app)
 
 with app.app_context():
@@ -133,6 +143,9 @@ def quote_to_dict(q):
         "updated_at": q.updated_at.strftime("%m/%d/%Y") if q.updated_at else "",
         "line_items": [line_item_to_dict(item) for item in sorted_line_items],
         "total": sum(float(item.total_price or 0) for item in sorted_line_items),
+        "created_by": q.created_by,
+        "locked_by": q.locked_by,
+        "locked_at": q.locked_at.isoformat() if q.locked_at else None,
     }
 
 
@@ -305,6 +318,42 @@ def get_quote(id):
     return jsonify(quote_to_dict(Quote.query.get_or_404(id)))
 
 
+@app.route("/quotes/<int:id>/lock", methods=["POST"])
+def lock_quote(id):
+    if "user_id" not in session:
+        return jsonify({"error": "Not logged in"}), 401
+
+    quote = Quote.query.get_or_404(id)
+    user_name = session["user_name"]
+
+    if quote.locked_by and quote.locked_by != user_name:
+        return jsonify({
+            "error": f"This quote is currently being edited by {quote.locked_by}."
+        }), 409
+
+    quote.locked_by = user_name
+    quote.locked_at = datetime.utcnow()
+
+    db.session.commit()
+
+    return jsonify(quote_to_dict(quote))
+
+
+@app.route("/quotes/<int:id>/unlock", methods=["POST"])
+def unlock_quote(id):
+    if "user_id" not in session:
+        return jsonify({"error": "Not logged in"}), 401
+
+    quote = Quote.query.get_or_404(id)
+
+    quote.locked_by = None
+    quote.locked_at = None
+
+    db.session.commit()
+
+    return jsonify(quote_to_dict(quote))
+
+
 @app.route("/quotes", methods=["POST"])
 def create_quote():
     data = request.json or {}
@@ -318,6 +367,7 @@ def create_quote():
         location=data.get("location"),
         status=data.get("status", "Not Started"),
         notes=data.get("notes"),
+        created_by=session.get("user_name"),
     )
     db.session.add(quote)
     db.session.commit()
@@ -739,6 +789,49 @@ def delete_contact(id):
     db.session.delete(c)
     db.session.commit()
     return jsonify({"message": "Contact deleted"})
+
+
+@app.route("/auth/login", methods=["POST"])
+def login():
+    data = request.get_json() or {}
+
+    email = data.get("email", "").strip().lower()
+    password = data.get("password", "")
+
+    user = User.query.filter_by(email=email, active=True).first()
+
+    if not user or not check_password_hash(user.password_hash, password):
+        return jsonify({"error": "Invalid email or password"}), 401
+
+    session["user_id"] = user.id
+    session["user_name"] = user.name
+    session["user_email"] = user.email
+
+    return jsonify({
+        "id": user.id,
+        "name": user.name,
+        "email": user.email
+    })
+
+
+@app.route("/auth/me", methods=["GET"])
+def auth_me():
+    if "user_id" not in session:
+        return jsonify({"user": None}), 401
+
+    return jsonify({
+        "user": {
+            "id": session["user_id"],
+            "name": session["user_name"],
+            "email": session["user_email"]
+        }
+    })
+
+
+@app.route("/auth/logout", methods=["POST"])
+def logout():
+    session.clear()
+    return jsonify({"message": "Logged out"})
 
 
 if __name__ == "__main__":

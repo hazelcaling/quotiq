@@ -11,3 +11,8 @@ if db_url and db_url.startswith("postgres://"):
 class Config:
     SQLALCHEMY_DATABASE_URI = db_url
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+
+    SECRET_KEY = os.getenv(
+        "SECRET_KEY",
+        "Heat4353"
+    )

@@ -13,6 +13,8 @@ import lastTwoPagesPdf from "./assets/last two page.pdf";
 
 const API = "http://localhost:5000";
 
+axios.defaults.withCredentials = true;
+
 const emptyQuote = {
   bid_date: "N/A",
   contact: [],
@@ -250,6 +252,13 @@ const [lineItemMessage, setLineItemMessage] = useState("");
 const [deletingLineItemId, setDeletingLineItemId] = useState(null);
 const [locationResults, setLocationResults] = useState([]);
 const [activeLookupField, setActiveLookupField] = useState(null);
+
+const [currentUser, setCurrentUser] = useState(null);
+const [loginForm, setLoginForm] = useState({
+  email: "",
+  password: "",
+});
+const [loginMessage, setLoginMessage] = useState("");
 const dashPageSize = 10;
 
   const activeQuote = quotes.find((q) => q.id === activeQuoteId);
@@ -282,6 +291,7 @@ const dashPageSize = 10;
     fetchContacts();
     fetchProducts();
     fetchNotes();
+    checkLogin();
   }, []);
 
   async function fetchQuotes(params = {}) {
@@ -744,6 +754,72 @@ function selectLineProduct(p) {
 //   await fetchQuotes();
 // }
 
+// async function saveQuote(e) {
+//   e.preventDefault();
+
+//   if (!isCopiedQuoteReadyToSave) return;
+
+//   setQuoteBusy(true);
+//   setQuoteMessage(editingQuoteId ? "Updating quote..." : "Saving new quote...");
+
+//   const payload = {
+//   ...quoteForm,
+//   bid_date: quoteForm.bid_date || "N/A",
+// };
+
+//   try {
+//     if (editingQuoteId) {
+//       // const res = await axios.put(`${API}/quotes/${editingQuoteId}`, quoteForm);
+//       const res = await axios.put(`${API}/quotes/${editingQuoteId}`, payload);
+//       setActiveQuoteId(res.data.id);
+//       setEditingQuoteId(null);
+//       setQuoteMessage("Quote updated successfully.");
+//     } else {
+//       // const res = await axios.post(`${API}/quotes`, quoteForm);
+//       const res = await axios.post(`${API}/quotes`, payload);
+//       const newQuoteId = res.data.id;
+
+//       for (const item of draftCopiedLineItems) {
+//         await axios.post(`${API}/quotes/${newQuoteId}/line-items`, {
+//           tag: item.tag || "",
+//           vendor: item.vendor || "",
+//           qty: item.qty || 1,
+//           description: item.description || "",
+//           item: item.item || "",
+//           type: item.type || "",
+//           series: item.series || "",
+//           model: item.model || "",
+//           part_number: item.part_number || "",
+//           list_price: item.list_price || 0,
+//           multiplier: item.multiplier || 1,
+//           markup: item.markup || 0,
+//           freight: item.freight || 0,
+//           startup: item.startup || 0,
+//           surcharge: item.surcharge || 0,
+//           terms: item.terms || "FOB",
+//           notes: item.notes || "",
+//           included: item.included || false,
+//         });
+//       }
+
+//       setActiveQuoteId(newQuoteId);
+//       setDraftCopiedLineItems([]);
+//       setCopiedQuote(null);
+//       setShowCopiedRequired(false);
+//       setQuoteMessage("Quote saved successfully.");
+//     }
+
+//     setQuoteForm(emptyQuote);
+//     await fetchQuotes();
+//   } catch (err) {
+//     console.error(err);
+//     setQuoteMessage("Unable to save quote. Please try again.");
+//   } finally {
+//     setQuoteBusy(false);
+//     setTimeout(() => setQuoteMessage(""), 2500);
+//   }
+// }
+
 async function saveQuote(e) {
   e.preventDefault();
 
@@ -753,19 +829,20 @@ async function saveQuote(e) {
   setQuoteMessage(editingQuoteId ? "Updating quote..." : "Saving new quote...");
 
   const payload = {
-  ...quoteForm,
-  bid_date: quoteForm.bid_date || "N/A",
-};
+    ...quoteForm,
+    bid_date: quoteForm.bid_date || "N/A",
+  };
 
   try {
     if (editingQuoteId) {
-      // const res = await axios.put(`${API}/quotes/${editingQuoteId}`, quoteForm);
       const res = await axios.put(`${API}/quotes/${editingQuoteId}`, payload);
+
+      await axios.post(`${API}/quotes/${editingQuoteId}/unlock`);
+
       setActiveQuoteId(res.data.id);
       setEditingQuoteId(null);
       setQuoteMessage("Quote updated successfully.");
     } else {
-      // const res = await axios.post(`${API}/quotes`, quoteForm);
       const res = await axios.post(`${API}/quotes`, payload);
       const newQuoteId = res.data.id;
 
@@ -803,33 +880,77 @@ async function saveQuote(e) {
     await fetchQuotes();
   } catch (err) {
     console.error(err);
-    setQuoteMessage("Unable to save quote. Please try again.");
+    setQuoteMessage(
+      err.response?.data?.error || "Unable to save quote. Please try again."
+    );
   } finally {
     setQuoteBusy(false);
     setTimeout(() => setQuoteMessage(""), 2500);
   }
 }
 
-  function editQuote(q) {
-    setEditingQuoteId(q.id);
-    setActiveQuoteId(q.id);
+//   function editQuote(q) {
+//     setEditingQuoteId(q.id);
+//     setActiveQuoteId(q.id);
+
+//     setQuoteForm({
+//       bid_date: q.bid_date || "N/A",
+//       // contact: Array.isArray(q.contact) ? q.contact : [],
+// contact: contactToArray(q.contact || activeQuote?.contact),
+//       project: q.project || "",
+//       to_company: q.to_company || "",
+//       attention: q.attention || "",
+//       location: q.location || "",
+//       status: q.status || "Not Started",
+//       notes: q.notes || "",
+//       date: q.date || "",
+//     });
+//     navigate("/");
+//   }
+
+async function editQuote(q) {
+  try {
+    if (editingQuoteId && editingQuoteId !== q.id) {
+      await axios.post(`${API}/quotes/${editingQuoteId}/unlock`);
+    }
+
+    const res = await axios.post(`${API}/quotes/${q.id}/lock`);
+    const lockedQuote = res.data;
+
+    setEditingQuoteId(lockedQuote.id);
+    setActiveQuoteId(lockedQuote.id);
 
     setQuoteForm({
-      bid_date: q.bid_date || "N/A",
-      // contact: Array.isArray(q.contact) ? q.contact : [],
-contact: contactToArray(q.contact || activeQuote?.contact),
-      project: q.project || "",
-      to_company: q.to_company || "",
-      attention: q.attention || "",
-      location: q.location || "",
-      status: q.status || "Not Started",
-      notes: q.notes || "",
-      date: q.date || "",
+      bid_date: lockedQuote.bid_date || "N/A",
+      contact: contactToArray(lockedQuote.contact),
+      project: lockedQuote.project || "",
+      to_company: lockedQuote.to_company || "",
+      attention: lockedQuote.attention || "",
+      location: lockedQuote.location || "",
+      status: lockedQuote.status || "Not Started",
+      notes: lockedQuote.notes || "",
+      date: lockedQuote.date || "",
     });
-    navigate("/");
-  }
 
-  function clearQuoteForm() {
+    await fetchQuotes();
+    navigate("/");
+  } catch (err) {
+    alert(
+      err.response?.data?.error ||
+        "This quote is currently being edited by another user."
+    );
+  }
+}
+
+  async function clearQuoteForm() {
+  if (editingQuoteId) {
+    try {
+      await axios.post(`${API}/quotes/${editingQuoteId}/unlock`);
+    } catch (err) {
+      console.error(err);
+    }
+  }
+    
   setEditingQuoteId(null);
   setActiveQuoteId(null);
   setQuoteForm({
@@ -1294,6 +1415,77 @@ function selectQuoteLocation(location) {
     await axios.delete(`${API}/${endpoint}/${id}`);
     await refresh();
   }
+
+  async function checkLogin() {
+  try {
+    const res = await axios.get(`${API}/auth/me`);
+    setCurrentUser(res.data.user);
+  } catch {
+    setCurrentUser(null);
+  }
+}
+
+async function login(e) {
+  e.preventDefault();
+
+  try {
+    const res = await axios.post(`${API}/auth/login`, loginForm);
+    setCurrentUser(res.data);
+    setLoginMessage("");
+  } catch {
+    setLoginMessage("Invalid email or password.");
+  }
+}
+
+async function logout() {
+  await axios.post(`${API}/auth/logout`);
+  setCurrentUser(null);
+}
+
+if (!currentUser) {
+  return (
+    <div className="login-page">
+      <form className="card login-card" onSubmit={login}>
+        <h3>Login</h3>
+
+        <input
+          type="email"
+          placeholder="Email"
+          value={loginForm.email}
+          onChange={(e) =>
+            setLoginForm((prev) => ({
+              ...prev,
+              email: e.target.value,
+            }))
+          }
+        />
+
+        <input
+          type="password"
+          placeholder="Password"
+          value={loginForm.password}
+          onChange={(e) =>
+            setLoginForm((prev) => ({
+              ...prev,
+              password: e.target.value,
+            }))
+          }
+        />
+
+        <button type="submit" className="btn primary">
+          Login
+        </button>
+
+        {loginMessage && (
+          <div className="required-save-message">
+            {loginMessage}
+          </div>
+        )}
+      </form>
+    </div>
+  );
+}
+
 
   const printQuotePdf = async (quote, mode = "preview") => {
     const doc = new jsPDF("p", "pt", "letter");
@@ -1803,6 +1995,49 @@ const downloadQuotePdf = async (quote) => {
   await printQuotePdf(quote, "download");
 };
 
+async function checkLogin() {
+  try {
+    const res = await axios.get(`${API}/auth/me`);
+
+    setCurrentUser(res.data.user);
+  } catch (err) {
+    setCurrentUser(null);
+  }
+}
+
+async function login(e) {
+  e.preventDefault();
+
+  try {
+    const res = await axios.post(
+      `${API}/auth/login`,
+      loginForm
+    );
+
+    setCurrentUser(res.data);
+    setLoginMessage("");
+  } catch (err) {
+    setLoginMessage("Invalid email or password.");
+  }
+}
+
+async function logout() {
+  try {
+    await axios.post(`${API}/auth/logout`);
+
+    setCurrentUser(null);
+
+    setLoginForm({
+      email: "",
+      password: "",
+    });
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+
+
 
 
   function Dashboard() {
@@ -1968,7 +2203,31 @@ const totalDashPages = Math.ceil(quotes.length / dashPageSize) || 1;
 >
   PDF
 </button>
-                    <button className="btn edit" onClick={() => editQuote(q)}>Edit</button>
+                    <button
+  className="btn secondary"
+  disabled={
+    q.locked_by &&
+    q.locked_by !== currentUser?.name
+  }
+  title={
+    q.locked_by &&
+    q.locked_by !== currentUser?.name
+      ? `${q.locked_by} is currently editing this quote`
+      : "Edit Quote"
+  }
+  onClick={() => editQuote(q)}
+>
+  {q.locked_by &&
+   q.locked_by !== currentUser?.name
+    ? `Locked`
+    : "Edit"}
+</button>
+{q.locked_by &&
+ q.locked_by !== currentUser?.name && (
+  <span className="quote-lock-indicator">
+    🔒 {q.locked_by} is here
+  </span>
+)}
                     {/* <button className="btn delete" onClick={() => deleteQuote(q.id)}>Delete</button> */}
                     <button
   className="btn delete"
@@ -3227,6 +3486,13 @@ return (
           <NavLink to="/contacts">Contacts</NavLink>
           <NavLink to="/products">Products</NavLink>
           <NavLink to="/notes">Notes Library</NavLink>
+          <button
+  type="button"
+  className="btn secondary"
+  onClick={logout}
+>
+  Logout
+</button>
         </nav>
       </header>
 
