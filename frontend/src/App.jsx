@@ -3162,6 +3162,7 @@ return (
       />
     );
   })}
+          <button className="btn primary">{config.editingId ? "Update" : "Add"}</button>
           <button
   type="button"
   className="btn secondary"
