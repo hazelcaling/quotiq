@@ -1961,6 +1961,13 @@ const totalDashPages = Math.ceil(quotes.length / dashPageSize) || 1;
 >
   Copy
 </button>
+<button
+  className="btn preview"
+  type="button"
+  onClick={() => previewQuotePdf(q)}
+>
+  PDF
+</button>
                     <button className="btn edit" onClick={() => editQuote(q)}>Edit</button>
                     {/* <button className="btn delete" onClick={() => deleteQuote(q.id)}>Delete</button> */}
                     <button

@@ -515,6 +515,15 @@ button:disabled {
   font-weight: 700;
 }
 
+.btn.preview {
+  background: #6f42c1;
+  color: white;
+}
+
+.btn.preview:hover {
+  background: #5a32a3;
+}
+
 @media (max-width: 1200px) {
   .line-grid {
     grid-template-columns: repeat(3, 1fr);
