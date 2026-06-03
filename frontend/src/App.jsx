@@ -3162,8 +3162,16 @@ return (
       />
     );
   })}
-          <button className="btn primary">{config.editingId ? "Update" : "Add"}</button>
-          {config.editingId && <button type="button" className="btn secondary" onClick={() => { config.setEditingId(null); config.setForm(config.empty); }}>Cancel</button>}
+          <button
+  type="button"
+  className="btn secondary"
+  onClick={() => {
+    config.setEditingId(null);
+    config.setForm(config.empty);
+  }}
+>
+  Cancel
+</button>
         </form>
 
         <div className="card table-wrap">
