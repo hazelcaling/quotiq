@@ -1,0 +1,38 @@
+.loading-page {
+  position: fixed;
+  inset: 0;
+  background: rgba(248, 250, 248, 0.9);
+  backdrop-filter: blur(3px);
+  z-index: 9999;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+}
+
+.loading-spinner {
+  width: 56px;
+  height: 56px;
+  border: 5px solid #d7e5df;
+  border-top-color: rgb(20, 80, 60);
+  border-right-color: rgb(32, 120, 90);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  box-shadow: 0 0 20px rgba(20, 80, 60, 0.2);
+}
+
+.loading-page p {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: rgb(20, 80, 60);
+  letter-spacing: 0.3px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

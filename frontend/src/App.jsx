@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
-import { BrowserRouter, Routes, Route, NavLink, useNavigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, NavLink, useNavigate, useLocation } from "react-router-dom";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { PDFDocument } from "pdf-lib";
@@ -10,6 +10,7 @@ import "./App.css";
 import hteLogo from "./assets/hte-logo.jpg";
 import hteAddress from "./assets/hte-address.png";
 import lastTwoPagesPdf from "./assets/last two page.pdf";
+import LoadingSpinner from "./LoadingSpinner";
 
 const API = "http://localhost:5000";
 
@@ -108,6 +109,7 @@ const emptyContact = {
 };
 
 
+
 function money(value) {
   const n = Number(value || 0);
   if (n === 0) return "";
@@ -174,6 +176,7 @@ function getLineDescription(item) {
 
 function AppContent() {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [quotes, setQuotes] = useState([]);
   const [quoteForm, setQuoteForm] = useState(emptyQuote);
@@ -252,8 +255,9 @@ const [lineItemMessage, setLineItemMessage] = useState("");
 const [deletingLineItemId, setDeletingLineItemId] = useState(null);
 const [locationResults, setLocationResults] = useState([]);
 const [activeLookupField, setActiveLookupField] = useState(null);
-
+const [locationSearchMessage, setLocationSearchMessage] = useState("");
 const [currentUser, setCurrentUser] = useState(null);
+const [loading, setLoading] = useState(false);
 const [loginForm, setLoginForm] = useState({
   email: "",
   password: "",
@@ -286,13 +290,42 @@ const dashPageSize = 10;
   }, [lineItemForm]);
 
   useEffect(() => {
-    fetchQuotes();
-    fetchCompanies();
-    fetchContacts();
-    fetchProducts();
-    fetchNotes();
+    // fetchQuotes();
+    // fetchCompanies();
+    // fetchContacts();
+    // fetchProducts();
+    // fetchNotes();
     checkLogin();
   }, []);
+
+  useEffect(() => {
+  if (!currentUser) return;
+
+  if (location.pathname === "/dashboard") {
+    fetchQuotes();
+  }
+
+  if (location.pathname === "/") {
+    fetchQuotes();
+  }
+
+  if (location.pathname === "/companies") {
+    fetchCompanies();
+  }
+
+  if (location.pathname === "/contacts") {
+    fetchContacts();
+    fetchCompanies(); // needed for company dropdown in contacts
+  }
+
+  if (location.pathname === "/products") {
+    fetchProducts();
+  }
+
+  if (location.pathname === "/notes") {
+    fetchNotes();
+  }
+}, [currentUser, location.pathname]);
 
   async function fetchQuotes(params = {}) {
     const res = await axios.get(`${API}/quotes`, { params });
@@ -309,22 +342,49 @@ const dashPageSize = 10;
   );
 }
 
-async function fetchDashboard() {
-  setDashPage(1);
+// async function fetchDashboard() {
+//   setLoading(true);
+//   setDashPage(1);
 
-  await fetchQuotes({
-    search: dashSearch,
-    line_search: dashLineSearch,
-    status: dashStatus,
-    customer: dashCustomer,
-    location: dashLocation,
-    quote_date_from: dashQuoteDateFrom,
-    quote_date_to: dashQuoteDateTo,
-    bid_date_from: dashBidDateFrom,
-    bid_date_to: dashBidDateTo,
-    sort_by: dashSort,
-    direction: dashDirection,
-  });
+//   await fetchQuotes({
+//     search: dashSearch,
+//     line_search: dashLineSearch,
+//     status: dashStatus,
+//     customer: dashCustomer,
+//     location: dashLocation,
+//     quote_date_from: dashQuoteDateFrom,
+//     quote_date_to: dashQuoteDateTo,
+//     bid_date_from: dashBidDateFrom,
+//     bid_date_to: dashBidDateTo,
+//     sort_by: dashSort,
+//     direction: dashDirection,
+//   });
+  
+  
+// }
+
+async function fetchDashboard() {
+  setLoading(true);
+
+  try {
+    setDashPage(1);
+
+    await fetchQuotes({
+      search: dashSearch,
+      line_search: dashLineSearch,
+      status: dashStatus,
+      customer: dashCustomer,
+      location: dashLocation,
+      quote_date_from: dashQuoteDateFrom,
+      quote_date_to: dashQuoteDateTo,
+      bid_date_from: dashBidDateFrom,
+      bid_date_to: dashBidDateTo,
+      sort_by: dashSort,
+      direction: dashDirection,
+    });
+  } finally {
+    setLoading(false);
+  }
 }
 
 async function clearDashboardFilters() {
@@ -909,6 +969,7 @@ async function saveQuote(e) {
 //   }
 
 async function editQuote(q) {
+  setLoading(true);
   try {
     if (editingQuoteId && editingQuoteId !== q.id) {
       await axios.post(`${API}/quotes/${editingQuoteId}/unlock`);
@@ -939,6 +1000,8 @@ async function editQuote(q) {
       err.response?.data?.error ||
         "This quote is currently being edited by another user."
     );
+  } finally {
+    setLoading(false);
   }
 }
 
@@ -1438,8 +1501,26 @@ async function login(e) {
 }
 
 async function logout() {
-  await axios.post(`${API}/auth/logout`);
-  setCurrentUser(null);
+  try {
+    if (editingQuoteId) {
+      await axios.post(
+        `${API}/quotes/${editingQuoteId}/unlock`
+      );
+    }
+
+    await axios.post(`${API}/auth/logout`);
+
+    setCurrentUser(null);
+    setEditingQuoteId(null);
+    setActiveQuoteId(null);
+
+    setLoginForm({
+      email: "",
+      password: "",
+    });
+  } catch (err) {
+    console.error(err);
+  }
 }
 
 if (!currentUser) {
@@ -1484,6 +1565,10 @@ if (!currentUser) {
       </form>
     </div>
   );
+}
+
+if (loading) {
+  return <LoadingSpinner text="Loading..." />;
 }
 
 
@@ -1930,6 +2015,14 @@ const drawHighlightedText = (text, yPos) => {
   doc.text(text, pageWidth - marginRight, yPos, { align: "right" });
 };
 
+// Leave room for notes + total at bottom of page
+const bottomMargin = 35;
+
+if (y > doc.internal.pageSize.height - bottomMargin) {
+  doc.addPage();
+  y = 30; // top margin on new page
+}
+
 // draw lines
 drawHighlightedText(priceNote1, y);
 
@@ -1945,6 +2038,7 @@ doc.setFontSize(12); // bigger
 doc.text(`TOTAL: ${formatMoney(pdfQuoteTotal)}`, pageWidth - marginRight, y, {
   align: "right",
 });
+
 
     // pageFooter(1);
 
@@ -1994,50 +2088,6 @@ const previewQuotePdf = async (quote) => {
 const downloadQuotePdf = async (quote) => {
   await printQuotePdf(quote, "download");
 };
-
-async function checkLogin() {
-  try {
-    const res = await axios.get(`${API}/auth/me`);
-
-    setCurrentUser(res.data.user);
-  } catch (err) {
-    setCurrentUser(null);
-  }
-}
-
-async function login(e) {
-  e.preventDefault();
-
-  try {
-    const res = await axios.post(
-      `${API}/auth/login`,
-      loginForm
-    );
-
-    setCurrentUser(res.data);
-    setLoginMessage("");
-  } catch (err) {
-    setLoginMessage("Invalid email or password.");
-  }
-}
-
-async function logout() {
-  try {
-    await axios.post(`${API}/auth/logout`);
-
-    setCurrentUser(null);
-
-    setLoginForm({
-      email: "",
-      password: "",
-    });
-  } catch (err) {
-    console.error(err);
-  }
-}
-
-
-
 
 
   function Dashboard() {
@@ -2988,7 +3038,13 @@ const current = contactToArray(quoteForm.contact);
 );
   }
 
+
+
+//   return <CrudTable type="contacts" />;
+// }
+
   function CrudTable({ type }) {
+
     const config = {
       products: {
         title: "Products",
@@ -3002,7 +3058,7 @@ const current = contactToArray(quoteForm.contact);
         editingId: editingProductId,
         setEditingId: setEditingProductId,
         rows: products,
-        fields: ["name", "tag", "vendor", "manufacturer", "category", "type", "series", "model", "part_number", "description", "list_price", "multiplier", "surcharge", "notes"],
+        fields: ["name", "category", "type", "series", "model", "part_number", "description", "notes", "tag", "list_price", "multiplier", "surcharge", "vendor", "manufacturer", ],
       },
       notes: {
         title: "Notes Library",
@@ -3030,7 +3086,7 @@ const current = contactToArray(quoteForm.contact);
         editingId: editingCompanyId,
         setEditingId: setEditingCompanyId,
         rows: companies,
-        fields: ["name", "type", "address1", "address2", "city", "state", "zipcode", "website", "account_number", "payment_terms", "notes"],
+        fields: ["name", "type", "city", "state", "website", "notes", "address1", "address2", "zipcode", "account_number", "payment_terms", ],
       },
       contacts: {
         title: "Contacts",
@@ -3044,7 +3100,27 @@ const current = contactToArray(quoteForm.contact);
         editingId: editingContactId,
         setEditingId: setEditingContactId,
         rows: contacts,
-        fields: ["company_id", "first_name", "last_name", "role", "email", "tel", "mobile", "notes"],
+        fields: [
+  "company_id",
+  "first_name",
+  "last_name",
+  "role",
+  "email",
+  "notes",
+  "tel",
+  "mobile",
+],
+displayFields: [
+  "company_id",
+  "company_name",
+  "first_name",
+  "last_name",
+  "role",
+  "email",
+  "notes",
+  "tel",
+  "mobile",
+],
       },
     }[type];
 
@@ -3092,9 +3168,7 @@ const current = contactToArray(quoteForm.contact);
 />
             )
           )} */}
-          {config.fields
-  .filter((f) => !(type === "contacts" && f === "company_id"))
-  .map((field) => {
+          {config.fields.filter((f) => !(type === "contacts" && f === "company_id")).map((field) => {
     const isLongField =
       field === "description" || field === "notes" || field === "text";
 
@@ -3456,9 +3530,11 @@ return (
         <div className="card table-wrap">
           <table className="data-table">
             <thead>
-              <tr>{config.fields.slice(0, 8).map((f) => <th key={f}>{f}</th>)}<th>Actions</th></tr>
+              {/* <tr>{config.fields.slice(0, 8).map((f) => <th key={f}>{f}</th>)}<th>Actions</th></tr> */}
+              <tr>{(config.displayFields || config.fields).slice(0, 8).map((f) => <th key={f}>{f}</th>)}<th>Actions</th></tr>
+
             </thead>
-            <tbody>
+            {/* <tbody>
               {config.rows.map((row) => (
                 <tr key={row.id}>
                   {config.fields.slice(0, 8).map((f) => <td key={f}>{String(row[f] ?? "")}</td>)}
@@ -3468,7 +3544,35 @@ return (
                   </td>
                 </tr>
               ))}
-            </tbody>
+            </tbody> */}
+            <tbody>
+  {config.rows.map((row) => (
+    <tr key={row.id}>
+      {(config.displayFields || config.fields).slice(0, 8).map((f) => (
+        <td key={f}>{String(row[f] ?? "")}</td>
+      ))}
+      <td>
+        <button
+          className="btn edit"
+          onClick={() => {
+            config.setEditingId(row.id);
+            config.setForm({ ...config.empty, ...row });
+          }}
+        >
+          Edit
+        </button>
+        <button
+          className="btn delete"
+          onClick={() =>
+            deleteCrud(config.endpoint, row.id, config.refresh)
+          }
+        >
+          Delete
+        </button>
+      </td>
+    </tr>
+  ))}
+</tbody>
           </table>
         </div>
       </section>
@@ -3496,9 +3600,23 @@ return (
         </nav>
       </header>
 
+{/* <Routes> */}
+  {/* <Route path="/" element={Builder()} />
+  <Route path="/dashboard" element={Dashboard()} /> */}
+  {/* <Route path="/companies" element={CrudTable({ type: "companies" })} />
+  <Route path="/contacts" element={CrudTable({ type: "contacts" })} />
+  <Route path="/products" element={CrudTable({ type: "products" })} />
+  <Route path="/notes" element={CrudTable({ type: "notes" })} /> */}
+ {/* <Route path="/companies" element={<CompaniesPage />} />
+<Route path="/contacts" element={<ContactsPage />} />
+<Route path="/products" element={<ProductsPage />} />
+<Route path="/notes" element={<NotesPage />} /> */}
+{/* </Routes> */}
+
 <Routes>
   <Route path="/" element={Builder()} />
   <Route path="/dashboard" element={Dashboard()} />
+
   <Route path="/companies" element={CrudTable({ type: "companies" })} />
   <Route path="/contacts" element={CrudTable({ type: "contacts" })} />
   <Route path="/products" element={CrudTable({ type: "products" })} />
