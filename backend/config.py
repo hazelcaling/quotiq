@@ -12,7 +12,4 @@ class Config:
     SQLALCHEMY_DATABASE_URI = db_url
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
-    SECRET_KEY = os.getenv(
-        "SECRET_KEY",
-        "Heat4353"
-    )
+    SECRET_KEY = os.environ["SECRET_KEY"]
