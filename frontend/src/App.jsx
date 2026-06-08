@@ -12,9 +12,11 @@ import hteAddress from "./assets/hte-address.png";
 import lastTwoPagesPdf from "./assets/last two page.pdf";
 import LoadingSpinner from "./LoadingSpinner";
 
-const API = "http://localhost:5000";
+const API =
+  import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 axios.defaults.withCredentials = true;
+
 
 const emptyQuote = {
   bid_date: "N/A",
