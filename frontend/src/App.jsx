@@ -2675,8 +2675,19 @@ const current = contactToArray(quoteForm.contact);
   <p>
     <b>Total:</b> {money(activeQuote.total)}
   </p>
+    <p>
+    <b>Notes:</b> {activeQuote.notes || "-"}
+  </p>
 
   <div className="button-row">
+        <button
+      className="btn secondary"
+      type="button"
+      onClick={() => editQuote(activeQuote)}
+    >
+      Edit
+    </button>
+
     <button
       className="btn secondary"
       type="button"
@@ -2693,6 +2704,8 @@ const current = contactToArray(quoteForm.contact);
       Download PDF
     </button>
   </div>
+
+  
 </>
         ) : (
           <p>Select or save a quote first.</p>
