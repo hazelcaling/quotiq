@@ -2099,8 +2099,92 @@ const downloadQuotePdf = async (quote) => {
 );
 
 const totalDashPages = Math.ceil(quotes.length / dashPageSize) || 1;
+
+// === NEW: Dashboard Statistics ===
+  const totalQuotes = quotes.length;
+  const totalValue = quotes.reduce((sum, q) => sum + (Number(q.total) || 0), 0);
+
+  const wonQuotes = quotes.filter(q => q.status === "Won");
+  const lostQuotes = quotes.filter(q => q.status === "Lost");
+  const pendingQuotes = quotes.filter(q => 
+    ["In Progress", "Bid Submitted", "Bid Submitted - to Sales", "Not Started", "Pending Instruction from Sales"].includes(q.status)
+  );
+
+  const wonValue = wonQuotes.reduce((sum, q) => sum + (Number(q.total) || 0), 0);
+  const lostValue = lostQuotes.reduce((sum, q) => sum + (Number(q.total) || 0), 0);
+  const pendingValue = pendingQuotes.reduce((sum, q) => sum + (Number(q.total) || 0), 0);
+
+  const submittedQuotes = totalQuotes;
+  const submittedValue = totalValue;
+
+  const winRate = submittedQuotes > 0 ? Math.round((wonQuotes.length / submittedQuotes) * 100) : 0;
+
+  // Monthly / Weekly stats (approximate)
+  const now = new Date();
+  const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const thisWeekStart = new Date(now);
+  thisWeekStart.setDate(now.getDate() - now.getDay());
+
+  const createdThisMonth = quotes.filter(q => {
+    const created = new Date(q.created_at || q.date);
+    return created >= thisMonthStart;
+  });
+
+  const createdThisWeek = quotes.filter(q => {
+    const created = new Date(q.created_at || q.date);
+    return created >= thisWeekStart;
+  });
+  
     return (
       <section className="screen">
+
+        {/* ==================== NEW SUMMARY SECTION ==================== */}
+      <div className="dashboard-summary">
+        <h2>📊 Quote Performance Overview</h2>
+
+        <div className="stats-grid">
+          <div className="stat-card">
+            <div className="stat-title">📝 Quotes Submitted</div>
+            <div className="stat-value">{submittedQuotes.toLocaleString()} <span className="percent">(100%)</span></div>
+            <div className="stat-money">${(submittedValue / 1_000_000).toFixed(1)}M</div>
+          </div>
+
+          <div className="stat-card success">
+            <div className="stat-title">✅ Won</div>
+            <div className="stat-value">{wonQuotes.length} <span className="percent">({Math.round((wonQuotes.length / submittedQuotes) * 100) || 0}%)</span></div>
+            <div className="stat-money">${(wonValue / 1_000_000).toFixed(1)}M</div>
+          </div>
+
+          <div className="stat-card danger">
+            <div className="stat-title">❌ Lost</div>
+            <div className="stat-value">{lostQuotes.length} <span className="percent">({Math.round((lostQuotes.length / submittedQuotes) * 100) || 0}%)</span></div>
+            <div className="stat-money">${(lostValue / 1_000_000).toFixed(1)}M</div>
+          </div>
+
+          <div className="stat-card warning">
+            <div className="stat-title">⏳ Pending / Follow-Up</div>
+            <div className="stat-value">{pendingQuotes.length} <span className="percent">({Math.round((pendingQuotes.length / submittedQuotes) * 100) || 0}%)</span></div>
+            <div className="stat-money">${(pendingValue / 1_000_000).toFixed(1)}M</div>
+          </div>
+        </div>
+
+        <div className="stats-row">
+          <div className="activity-card">
+            <h3>📊 Quote Activity</h3>
+            <p><strong>Total Quotes:</strong> {totalQuotes.toLocaleString()} | ${(totalValue / 1_000_000).toFixed(1)}M</p>
+            <p><strong>Created This Month:</strong> {createdThisMonth.length} | ${((createdThisMonth.reduce((sum, q) => sum + (Number(q.total) || 0), 0)) / 1000).toFixed(0)}K</p>
+            <p><strong>Created This Week:</strong> {createdThisWeek.length} | ${((createdThisWeek.reduce((sum, q) => sum + (Number(q.total) || 0), 0)) / 1000).toFixed(0)}K</p>
+          </div>
+
+          <div className="performance-card">
+            <h3>💰 Performance</h3>
+            <p><strong>🏆 Won Revenue (YTD):</strong> ${(wonValue / 1_000_000).toFixed(1)}M</p>
+            <p><strong>📈 Win Rate:</strong> {winRate}%</p>
+            <p><strong>📊 Average Quote Value:</strong> ${Math.round(totalValue / (totalQuotes || 1)).toLocaleString()}</p>
+          </div>
+        </div>
+      </div>
+
       <div className="toolbar dashboard-toolbar">
   <input
     placeholder="Search Quote # / Job / Attn"
