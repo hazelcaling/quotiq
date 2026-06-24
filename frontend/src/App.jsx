@@ -230,6 +230,7 @@ const [contactSearchMessage, setContactSearchMessage] = useState("");
   const [noteLineItem, setNoteLineItem] = useState(null);
   const [noteDrafts, setNoteDrafts] = useState([]);
 
+  const [showNoSpec, setShowNoSpec] = useState(true);
   
 const [noteModalSearch, setNoteModalSearch] = useState("");
 
@@ -1761,235 +1762,428 @@ doc.text(
   { align: "center" }
 );
 
-y += 12;
 
-autoTable(doc, {
-  startY: y,
-  margin: { left: marginLeft - 10, right: marginRight -10 },
-  // theme: "grid",
-  theme: "plain",
-  head: [["TAG:", "QTY:", "DESCRIPTION:", "NET EACH", "EXT. TOTAL"]],
-body: [...(quote.line_items || [])]
-  .map((item) => [
-  item.tag || "",
-  Number(item.qty) > 0 ? item.qty : "",
-  (item.description || "")
-    .replace(/\r\n/g, "\n")
-    .replace(/\r/g, "\n")
-    .replace(/[ \t]+/g, " ")
-    .replace(/\n{3,}/g, "\n\n")
-    .replace(/(^|\n)-\s+/g, "$1• ")
-    .trim(),
-  // formatMoney(item.sell_price),
-  // formatMoney(item.total_price),
-item.included ? "Included" : formatMoney(item.sell_price),
-item.included ? "Included" : formatMoney(item.total_price),
-]),
+
+// y += 12;
+
+// autoTable(doc, {
+//   startY: y,
+//   margin: { left: marginLeft - 10, right: marginRight -10 },
+//   // theme: "grid",
+//   theme: "plain",
+//   head: [["TAG:", "QTY:", "DESCRIPTION:", "NET EACH", "EXT. TOTAL"]],
+// body: [...(quote.line_items || [])]
+//   .map((item) => [
+//   item.tag || "",
+//   Number(item.qty) > 0 ? item.qty : "",
+//   (item.description || "")
+//     .replace(/\r\n/g, "\n")
+//     .replace(/\r/g, "\n")
+//     .replace(/[ \t]+/g, " ")
+//     .replace(/\n{3,}/g, "\n\n")
+//     .replace(/(^|\n)-\s+/g, "$1• ")
+//     .trim(),
+//   // formatMoney(item.sell_price),
+//   // formatMoney(item.total_price),
+// item.included ? "Included" : formatMoney(item.sell_price),
+// item.included ? "Included" : formatMoney(item.total_price),
+// ]),
     
 
-  styles: {
-    font: "helvetica",
-    fontSize: 8,
-    cellPadding: { top: 8, bottom: 8, left: 4, right: 4 },
-    textColor: [0, 0, 0],
-    lineColor: [0, 0, 0],
-    halign: "left",
-    // lineWidth: 0.4,
-  },
-  headStyles: {
-    fillColor: [230, 230, 230],
-    textColor: [0, 0, 0],
-    fontStyle: "bold",
-    halign: "center",
-  },
-  columnStyles: {
-    // 0: { cellWidth: 80 },
-    0: { cellWidth: 85, cellPadding: { left: 10, right: 4, top: 8, bottom: 8 }, fontStyle: "bold" },
-    1: { cellWidth: 40, halign: "center", fontStyle: "bold" },
-    2: { cellWidth: 295, halign: "left" },
-    3: { cellWidth: 70, halign: "center" },
-    4: { cellWidth: 70, halign: "center", fontStyle: "bold" },
-  },
-  bodyStyles: {
-    valign: "top",
-  },
+//   styles: {
+//     font: "helvetica",
+//     fontSize: 8,
+//     cellPadding: { top: 8, bottom: 8, left: 4, right: 4 },
+//     textColor: [0, 0, 0],
+//     lineColor: [0, 0, 0],
+//     halign: "left",
+//     // lineWidth: 0.4,
+//   },
+//   headStyles: {
+//     fillColor: [230, 230, 230],
+//     textColor: [0, 0, 0],
+//     fontStyle: "bold",
+//     halign: "center",
+//   },
+//   columnStyles: {
+//     // 0: { cellWidth: 80 },
+//     0: { cellWidth: 85, cellPadding: { left: 10, right: 4, top: 8, bottom: 8 }, fontStyle: "bold" },
+//     1: { cellWidth: 40, halign: "center", fontStyle: "bold" },
+//     2: { cellWidth: 295, halign: "left" },
+//     3: { cellWidth: 70, halign: "center" },
+//     4: { cellWidth: 70, halign: "center", fontStyle: "bold" },
+//   },
+//   bodyStyles: {
+//     valign: "top",
+//   },
 
-//   didParseCell: function (data) {
+// //   didParseCell: function (data) {
 
     
-//   // DESCRIPTION column only
-//   if (data.section === "body" && data.column.index === 2) {
-//     const text = Array.isArray(data.cell.text)
-//       ? data.cell.text.join(" ")
-//       : String(data.cell.text || "");
+// //   // DESCRIPTION column only
+// //   if (data.section === "body" && data.column.index === 2) {
+// //     const text = Array.isArray(data.cell.text)
+// //       ? data.cell.text.join(" ")
+// //       : String(data.cell.text || "");
 
-//     // if contains bullet
-//     if (text.includes("•")) {
-//       data.cell.styles.fontStyle = "italic";
-//     }
-//   }
-// },
-
-// didParseCell: function (data) {
-//   if (data.section === "body" && data.column.index === 2) {
-//     const raw = String(data.row.raw[2] || "");
-
-//     if (raw.includes("||")) {
-//       // hide original text so custom text does not print twice
-//       data.cell.styles.textColor = [255, 255, 255];
-//     } else if (raw.includes("•")) {
-//       // fallback: italicize full cell if no custom bold separator
-//       data.cell.styles.fontStyle = "italic";
-//     }
-//   }
-// },
-
-didParseCell: function (data) {
-
-  // reset every cell to normal first
-  // data.cell.styles.fontStyle = "normal";
-
-  // TAG column - hide only marked lines from autoTable
-  if (data.section === "body" && data.column.index === 0) {
-    const raw = String(data.cell.raw || "");
-
-    data.cell.text = raw
-      .split("\n")
-      .map((line) => {
-        // if (line.trim().startsWith("!")) return " ";
-        // return line.trim();
-        return line.replace("!", "").trim();
-      });
-  }
-
-  // DESCRIPTION column
-// DESCRIPTION column
-if (data.section === "body" && data.column.index === 2) {
-  const raw = String(data.cell.raw || "");
-
-  if (raw.includes("||")) {
-    data.cell.text = data.cell.text.map((line) =>
-      String(line).replace(/\|\|/g, "")
-    );
-  }
-
-  data.cell.text = data.cell.text.map((line) => {
-  if (String(line).trim().startsWith("•")) {
-    return "   " + line;
-  }
-  return line;
-});
-
-}
-},
-
-// didDrawCell: function (data) {
-
-
-//   // TAG column - yellow + bold only line with *
-
-//   if (
-//   data.section === "body" &&
-//   data.column.index === 0 &&
-//   data.cell.raw !== undefined &&
-//   data.cell.raw !== null
-// ) {
-//     const raw = String(data.row.raw[0] || "");
-//     const lines = raw.split("\n");
-
-//     const x = data.cell.x + 10;
-//     let y = data.cell.y + 11;
-//     const lineHeight = 8.5;
-
-//     lines.forEach((line) => {
-//       const isMarked = line.trim().startsWith("!");
-//       const cleanLine = line.replace(/^\!/, "").trim();
-
-//       if (isMarked && cleanLine) {
-//         doc.setFont("helvetica", "bold");
-//         doc.setFontSize(8);
-
-//         const textWidth = doc.getTextWidth(cleanLine);
-
-//         doc.setFillColor(255, 255, 0);
-//         doc.rect(x - 1, y - 6, textWidth + 3, 8, "F");
-
-//         doc.setTextColor(0, 0, 0);
-//         doc.text(cleanLine, x, y);
-//       }
-
-//       y += lineHeight;
-//     });
-//   }
-
-  
-  
-
-// //   if (data.section !== "body") return;
-// //   if (data.column.index !== 2) return;
-
-// //   // ✅ Do not custom-draw repeated/continued rows on new page
-// // if (data.cell.raw === undefined || data.cell.raw === null) return;
-
-// //   const raw = String(data.row.raw[2] || "");
-// //   if (!raw.includes("||")) return;
-
-// //   const [boldPart, ...restParts] = raw.split("||");
-// //   const boldText = boldPart.trim();
-// //   const normalText = restParts.join("||").trim();
-
-// //   const x = data.cell.x + 3;
-// //   let y = data.cell.y + 8;
-// //   const maxWidth = data.cell.width - 6;
-// //   const lineHeight = 8.5;
-
-// //   doc.setTextColor(0, 0, 0);
-
-// //   doc.setFont("helvetica", "bold");
-// //   doc.text(boldText, x, y);
-
-// //   const boldWidth = doc.getTextWidth(boldText + " ");
-
-// //   doc.setFont("helvetica", "normal");
-
-// //   const normalLines = doc.splitTextToSize(normalText, maxWidth - boldWidth);
-
-// //   if (normalLines.length > 0) {
-// //     doc.text(normalLines[0], x + boldWidth, y);
+// //     // if contains bullet
+// //     if (text.includes("•")) {
+// //       data.cell.styles.fontStyle = "italic";
+// //     }
 // //   }
-
-// //   y += lineHeight;
-
-//   // const remainingText = normalLines.slice(1).join(" ");
-//   // const remainingLines = doc.splitTextToSize(remainingText, maxWidth);
-
-//   // remainingLines.forEach((line) => {
-//   //   const trimmed = line.trim();
-
-//   //   if (trimmed.startsWith("•")) {
-//   //     doc.setFont("helvetica", "italic");
-//   //   } else {
-//   //     doc.setFont("helvetica", "normal");
-//   //   }
-
-//   //   doc.text(line, x, y);
-//   //   y += lineHeight;
-//   // });
 // // },
 
+// // didParseCell: function (data) {
+// //   if (data.section === "body" && data.column.index === 2) {
+// //     const raw = String(data.row.raw[2] || "");
+
+// //     if (raw.includes("||")) {
+// //       // hide original text so custom text does not print twice
+// //       data.cell.styles.textColor = [255, 255, 255];
+// //     } else if (raw.includes("•")) {
+// //       // fallback: italicize full cell if no custom bold separator
+// //       data.cell.styles.fontStyle = "italic";
+// //     }
+// //   }
+// // },
+
+// didParseCell: function (data) {
+
+//   // reset every cell to normal first
+//   // data.cell.styles.fontStyle = "normal";
+
+//   // TAG column - hide only marked lines from autoTable
+//   if (data.section === "body" && data.column.index === 0) {
+//     const raw = String(data.cell.raw || "");
+
+//     data.cell.text = raw
+//       .split("\n")
+//       .map((line) => {
+//         // if (line.trim().startsWith("!")) return " ";
+//         // return line.trim();
+//         return line.replace("!", "").trim();
+//       });
+//   }
+
+//   // DESCRIPTION column
+// // DESCRIPTION column
+// if (data.section === "body" && data.column.index === 2) {
+//   const raw = String(data.cell.raw || "");
+
+//   if (raw.includes("||")) {
+//     data.cell.text = data.cell.text.map((line) =>
+//       String(line).replace(/\|\|/g, "")
+//     );
+//   }
+
+//   data.cell.text = data.cell.text.map((line) => {
+//   if (String(line).trim().startsWith("•")) {
+//     return "   " + line;
+//   }
+//   return line;
+// });
+
+// }
+// },
+
+// // didDrawCell: function (data) {
+
+
+// //   // TAG column - yellow + bold only line with *
+
+// //   if (
+// //   data.section === "body" &&
+// //   data.column.index === 0 &&
+// //   data.cell.raw !== undefined &&
+// //   data.cell.raw !== null
+// // ) {
+// //     const raw = String(data.row.raw[0] || "");
+// //     const lines = raw.split("\n");
+
+// //     const x = data.cell.x + 10;
+// //     let y = data.cell.y + 11;
+// //     const lineHeight = 8.5;
+
+// //     lines.forEach((line) => {
+// //       const isMarked = line.trim().startsWith("!");
+// //       const cleanLine = line.replace(/^\!/, "").trim();
+
+// //       if (isMarked && cleanLine) {
+// //         doc.setFont("helvetica", "bold");
+// //         doc.setFontSize(8);
+
+// //         const textWidth = doc.getTextWidth(cleanLine);
+
+// //         doc.setFillColor(255, 255, 0);
+// //         doc.rect(x - 1, y - 6, textWidth + 3, 8, "F");
+
+// //         doc.setTextColor(0, 0, 0);
+// //         doc.text(cleanLine, x, y);
+// //       }
+
+// //       y += lineHeight;
+// //     });
+// //   }
+
+  
   
 
+// // //   if (data.section !== "body") return;
+// // //   if (data.column.index !== 2) return;
+
+// // //   // ✅ Do not custom-draw repeated/continued rows on new page
+// // // if (data.cell.raw === undefined || data.cell.raw === null) return;
+
+// // //   const raw = String(data.row.raw[2] || "");
+// // //   if (!raw.includes("||")) return;
+
+// // //   const [boldPart, ...restParts] = raw.split("||");
+// // //   const boldText = boldPart.trim();
+// // //   const normalText = restParts.join("||").trim();
+
+// // //   const x = data.cell.x + 3;
+// // //   let y = data.cell.y + 8;
+// // //   const maxWidth = data.cell.width - 6;
+// // //   const lineHeight = 8.5;
+
+// // //   doc.setTextColor(0, 0, 0);
+
+// // //   doc.setFont("helvetica", "bold");
+// // //   doc.text(boldText, x, y);
+
+// // //   const boldWidth = doc.getTextWidth(boldText + " ");
+
+// // //   doc.setFont("helvetica", "normal");
+
+// // //   const normalLines = doc.splitTextToSize(normalText, maxWidth - boldWidth);
+
+// // //   if (normalLines.length > 0) {
+// // //     doc.text(normalLines[0], x + boldWidth, y);
+// // //   }
+
+// // //   y += lineHeight;
+
+// //   // const remainingText = normalLines.slice(1).join(" ");
+// //   // const remainingLines = doc.splitTextToSize(remainingText, maxWidth);
+
+// //   // remainingLines.forEach((line) => {
+// //   //   const trimmed = line.trim();
+
+// //   //   if (trimmed.startsWith("•")) {
+// //   //     doc.setFont("helvetica", "italic");
+// //   //   } else {
+// //   //     doc.setFont("helvetica", "normal");
+// //   //   }
+
+// //   //   doc.text(line, x, y);
+// //   //   y += lineHeight;
+// //   // });
+// // // },
+
+  
+
+// });
+// ==================== MANUAL TABLE ====================
+
+y += 12;
+
+// Header
+doc.setFillColor(230, 230, 230);
+doc.rect(marginLeft - 10, y, pageWidth - marginRight + 10 - (marginLeft - 10), 14, "F");
+
+doc.setFont("helvetica", "bold");
+doc.setFontSize(9);
+doc.setTextColor(0, 0, 0);
+
+const tableTop = y + 11;
+const colX = [
+  marginLeft - 8,            // TAG
+  marginLeft + 85,           // QTY
+  marginLeft + 115,          // DESCRIPTION (start)
+  pageWidth - marginRight - 110, // NET EACH (moved right)
+  pageWidth - marginRight - 30   // EXT. TOTAL (moved right)
+];
+
+doc.text("TAG", colX[0] + 8, tableTop);
+doc.text("QTY", colX[1], tableTop, { align: "center" });
+doc.text("DESCRIPTION", colX[2] + 150, tableTop, { align: "center" });
+doc.text("NET EACH", colX[3], tableTop, { align: "center" });
+doc.text("EXT. TOTAL", colX[4], tableTop, { align: "center" });
+
+// Header line
+y += 15;
+// doc.setDrawColor(0, 0, 0);
+// doc.setLineWidth(0.8);
+// doc.line(marginLeft - 10, y, pageWidth - marginRight + 10, y);
+
+y += 10;
+
+doc.setFontSize(8.5);
+const tableLineHeight = 9.8;
+const descMaxWidth = 300;   // Description width DATI AY 300 WORKING
+
+// ==================== TABLE BODY ====================
+(quote.line_items || []).forEach((item) => {
+  const qty = Number(item.qty) > 0 ? item.qty.toString() : "";
+  const netPrice = item.included ? "Included" : formatMoney(item.sell_price);
+  const extPrice = item.included ? "Included" : formatMoney(item.total_price);
+
+  let fullDesc = (item.description || "").replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
+  const rawLines = fullDesc.split("\n");
+  let startY = y;
+  let currentY = startY;
+
+  rawLines.forEach((line, lineIndex) => {
+    const trimmed = line.trim();
+
+    if (trimmed.startsWith("-")) {
+      doc.setFont("helvetica", "italic");
+      const bulletText = "• " + trimmed.substring(1).trim();
+      
+      const bulletIndent = colX[2] + 18;           // position of bullet
+      const textIndent   = colX[2] + 24;           // hanging indent for wrapped lines
+
+      const wrapped = doc.splitTextToSize(bulletText, descMaxWidth - 40);
+
+      wrapped.forEach((wrappedLine, i) => {
+        if (i === 0) {
+          // First line with bullet
+          doc.text(wrappedLine, bulletIndent, currentY);
+        } else {
+          // Wrapped lines - indented under the text
+          doc.text(wrappedLine, textIndent, currentY);
+        }
+        currentY += tableLineHeight;
+      });
+    } 
+    else if (lineIndex === 0) {
+      // First sentence bold
+      doc.setFont("helvetica", "bold");
+      
+      let splitIndex = trimmed.search(/[,.]/);
+      if (splitIndex === -1) splitIndex = trimmed.length;
+
+      const boldPart = trimmed.substring(0, splitIndex + 1);
+      const restPart = trimmed.substring(splitIndex + 1).trim();
+
+      // doc.text(boldPart, colX[2], currentY);
+
+
+
+
+
+// Wrap bold part if long
+      const boldMaxWidth = descMaxWidth - 25;
+      const boldWrapped = doc.splitTextToSize(boldPart, boldMaxWidth);
+
+      boldWrapped.forEach((line, index) => {
+        doc.text(line, colX[2], currentY);
+        if (index < boldWrapped.length - 1) {
+          currentY += tableLineHeight;
+        }
+      });
+
+
+
+
+
+
+
+
+
+      if (restPart) {
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8.5);
+        const fullRest = " " + restPart;
+        
+        // First line after bold (narrower because of bold text)
+        const firstLineWidth = descMaxWidth - doc.getTextWidth(boldPart) - 30;
+        let wrappedRest = doc.splitTextToSize(fullRest, firstLineWidth);
+
+        // Print first continuation
+        doc.text(wrappedRest[0], colX[2] + doc.getTextWidth(boldPart) + 14, currentY);
+
+        // Remaining text - use FULL WIDTH
+        if (wrappedRest.length > 1) {
+          const remainingText = wrappedRest.slice(1).join(" ");
+          const fullWidthWrapped = doc.splitTextToSize(remainingText, descMaxWidth - 30);
+
+          for (let i = 0; i < fullWidthWrapped.length; i++) {
+            currentY += tableLineHeight;
+            doc.text(fullWidthWrapped[i], colX[2], currentY);
+          }
+        }
+      }
+      currentY += tableLineHeight;
+    } 
+
+
+    
+    else {
+      // Normal lines
+      doc.setFont("helvetica", "normal");
+      const wrapped = doc.splitTextToSize(trimmed, descMaxWidth);
+      wrapped.forEach(wrappedLine => {
+        doc.text(wrappedLine, colX[2] + 5, currentY);
+        currentY += tableLineHeight;
+      });
+    }
+  });
+
+  // Draw fixed columns (aligned to top)
+  // TAG with wrapping
+  doc.setFont("helvetica", "bold");
+  const tagText = item.tag || "";
+  const tagMaxWidth = 70;   // adjust if needed (bigger = more space)
+
+  const wrappedTag = doc.splitTextToSize(tagText, tagMaxWidth);
+
+  wrappedTag.forEach((line, i) => {
+    doc.text(line, colX[0] + 8, startY + 1 + (i * tableLineHeight));
+  });
+
+  doc.text(qty, colX[1], startY + 1, { align: "center" });
+
+  doc.setFont("helvetica", "normal");
+  doc.text(netPrice, colX[3], startY + 1, { align: "center" });
+
+  doc.setFont("helvetica", "bold");
+  doc.text(extPrice, colX[4], startY + 1, { align: "center" });
+
+  // IMPORTANT: Adjust row height based on tallest content (TAG or DESCRIPTION)
+  // const tagHeight = wrappedTag.length * tableLineHeight;
+  // y = Math.max(currentY, startY + tagHeight + 28);   // ← Ito ang susi
+
+  const tagHeight = wrappedTag.length * tableLineHeight;
+  const descHeight = currentY - startY;
+
+  y = startY + Math.max(tagHeight, descHeight) + 12;   // ← Ito ang susi (adjust 18)
+
+
+  // Separator -- 
+  // doc.setDrawColor(220, 220, 220);
+  // doc.setLineWidth(0.4);
+  // doc.line(marginLeft - 5, y, pageWidth - marginRight + 5, y);
+  y += 8;
+
+  // Page break check
+  if (y > doc.internal.pageSize.height - 50) {
+    doc.addPage();
+    y = 40;
+  }
 });
 
-    y = doc.lastAutoTable.finalY + 18;
+y += 20;
 
-    y = doc.lastAutoTable.finalY + 6;
+y += 12;
+
+// ==================== PRICING NOTES + TOTAL ====================
 
 doc.setDrawColor(0, 0, 0);
 doc.setLineWidth(0.7);
-doc.line(marginLeft - 10, y, pageWidth - marginRight + 10, y);
+doc.line(marginLeft - 10, y, pageWidth - marginRight + 10, y);   // separator line
 
-y += 16;
+y += 18;
 
 doc.setFont("helvetica", "bold");
 doc.setFontSize(8);
@@ -1999,53 +2193,27 @@ const priceNote2 = `ALL EQUIPMENT HAS BEEN PRICED: ${termsText}`;
 
 const drawHighlightedText = (text, yPos) => {
   const textWidth = doc.getTextWidth(text);
-  const padding = 3;
-
+  const padding = 4;
   const x = pageWidth - marginRight - textWidth;
 
-  // tight yellow highlight
   doc.setFillColor(255, 255, 0);
-  doc.rect(
-    x - padding,
-    yPos - 6,
-    textWidth + padding * 2,
-    10,
-    "F"
-  );
+  doc.rect(x - padding, yPos - 6, textWidth + padding * 2, 11, "F");
 
   doc.setTextColor(0, 0, 0);
   doc.text(text, pageWidth - marginRight, yPos, { align: "right" });
 };
 
-// Leave room for notes + total at bottom of page
-const bottomMargin = 35;
-
-if (y > doc.internal.pageSize.height - bottomMargin) {
-  doc.addPage();
-  y = 30; // top margin on new page
-}
-
-// draw lines
+// Draw the notes
 drawHighlightedText(priceNote1, y);
-
-y += 12;
+y += 14;
 
 drawHighlightedText(priceNote2, y);
+y += 16;
 
-y += 18;
-
+// TOTAL
 doc.setFont("helvetica", "bold");
-doc.setFontSize(12); // bigger
-
-doc.text(`TOTAL: ${formatMoney(pdfQuoteTotal)}`, pageWidth - marginRight, y, {
-  align: "right",
-});
-
-
-    // pageFooter(1);
-
-   
-    // pageFooter(2);
+doc.setFontSize(12);
+doc.text(`TOTAL: ${formatMoney(pdfQuoteTotal)}`, pageWidth - marginRight, y, { align: "right" });
 
 
 const quotePdfBytes = doc.output("arraybuffer");
@@ -2134,7 +2302,7 @@ const totalDashPages = Math.ceil(quotes.length / dashPageSize) || 1;
     const created = new Date(q.created_at || q.date);
     return created >= thisWeekStart;
   });
-  
+
     return (
       <section className="screen">
 
@@ -2176,12 +2344,12 @@ const totalDashPages = Math.ceil(quotes.length / dashPageSize) || 1;
             <p><strong>Created This Week:</strong> {createdThisWeek.length} | ${((createdThisWeek.reduce((sum, q) => sum + (Number(q.total) || 0), 0)) / 1000).toFixed(0)}K</p>
           </div>
 
-          <div className="performance-card">
+          {/* <div className="performance-card">
             <h3>💰 Performance</h3>
             <p><strong>🏆 Won Revenue (YTD):</strong> ${(wonValue / 1_000_000).toFixed(1)}M</p>
             <p><strong>📈 Win Rate:</strong> {winRate}%</p>
             <p><strong>📊 Average Quote Value:</strong> ${Math.round(totalValue / (totalQuotes || 1)).toLocaleString()}</p>
-          </div>
+          </div> */}
         </div>
       </div>
 
@@ -2678,6 +2846,8 @@ const current = contactToArray(quoteForm.contact);
           />
         </label>
 
+
+
 <div className="button-row">
 <button
   className="btn primary"
@@ -2708,6 +2878,9 @@ const current = contactToArray(quoteForm.contact);
   Paste Copied Quote
 </button>
 </div>
+
+
+
 {quoteMessage && (
   <div className="quote-message">
     {quoteMessage}
@@ -3042,6 +3215,7 @@ const current = contactToArray(quoteForm.contact);
               <th>Terms</th>
               <th>Sell</th>
               <th>Total</th>
+              <th>Line Item Notes</th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -3088,6 +3262,7 @@ const current = contactToArray(quoteForm.contact);
                 <td>{item.terms || ""}</td>
                 <td>{item.included ? "Included" : money(item.sell_price)}</td>
                 <td>{item.included ? "Included" : money(item.total_price)}</td>
+                <td>{item.noteLineItem}</td>
 
                 <td>
                   <button

@@ -26,9 +26,8 @@ app.config.update(
     SESSION_COOKIE_SECURE=True,
 )
 
-# CORS(app)
-# CORS(app, supports_credentials=True)
-CORS(app, supports_credentials=True, origins=["https://quotiq.onrender.com"])
+
+CORS(app, supports_credentials=True, origins=["https://quotiq.onrender.com", "http://localhost:5173",])
 db.init_app(app)
 
 with app.app_context():
