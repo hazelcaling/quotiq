@@ -27,6 +27,7 @@ const emptyQuote = {
   location: "",
   status: "Not Started",
   notes: "",
+  showNoSpec: true,
 };
 
 const emptyLineItem = {
@@ -261,6 +262,9 @@ const [activeLookupField, setActiveLookupField] = useState(null);
 const [locationSearchMessage, setLocationSearchMessage] = useState("");
 const [currentUser, setCurrentUser] = useState(null);
 const [loading, setLoading] = useState(false);
+// Add this near line ~140 (after dashPage)
+const [crudPage, setCrudPage] = useState(1);
+const crudPageSize = 10;
 const [loginForm, setLoginForm] = useState({
   email: "",
   password: "",
@@ -293,11 +297,6 @@ const dashPageSize = 10;
   }, [lineItemForm]);
 
   useEffect(() => {
-    // fetchQuotes();
-    // fetchCompanies();
-    // fetchContacts();
-    // fetchProducts();
-    // fetchNotes();
     checkLogin();
   }, []);
 
@@ -345,26 +344,6 @@ const dashPageSize = 10;
   );
 }
 
-// async function fetchDashboard() {
-//   setLoading(true);
-//   setDashPage(1);
-
-//   await fetchQuotes({
-//     search: dashSearch,
-//     line_search: dashLineSearch,
-//     status: dashStatus,
-//     customer: dashCustomer,
-//     location: dashLocation,
-//     quote_date_from: dashQuoteDateFrom,
-//     quote_date_to: dashQuoteDateTo,
-//     bid_date_from: dashBidDateFrom,
-//     bid_date_to: dashBidDateTo,
-//     sort_by: dashSort,
-//     direction: dashDirection,
-//   });
-  
-  
-// }
 
 async function fetchDashboard() {
   setLoading(true);
@@ -755,134 +734,6 @@ function selectLineProduct(p) {
     setQuoteForm((prev) => ({ ...prev, contact: arr }));
   }
 
-  // async function saveQuote(e) {
-  //   e.preventDefault();
-  //   if (editingQuoteId) {
-  //     const res = await axios.put(`${API}/quotes/${editingQuoteId}`, quoteForm);
-  //     setActiveQuoteId(res.data.id);
-  //     setEditingQuoteId(null);
-  //   } else {
-  //     const res = await axios.post(`${API}/quotes`, quoteForm);
-  //     setActiveQuoteId(res.data.id);
-  //   }
-  //   setQuoteForm(emptyQuote);
-  //   await fetchQuotes();
-  // }
-
-//   async function saveQuote(e) {
-//   e.preventDefault();
-
-//   if (!isCopiedQuoteReadyToSave) return;
-//   setQuoteBusy(true);
-// setQuoteMessage(editingQuoteId ? "Updating quote..." : "Saving new quote...");
-
-//   if (editingQuoteId) {
-//     const res = await axios.put(`${API}/quotes/${editingQuoteId}`, quoteForm);
-//     setActiveQuoteId(res.data.id);
-//     setEditingQuoteId(null);
-//   } else {
-//     const res = await axios.post(`${API}/quotes`, quoteForm);
-//     const newQuoteId = res.data.id;
-
-//     for (const item of draftCopiedLineItems) {
-//       await axios.post(`${API}/quotes/${newQuoteId}/line-items`, {
-//         tag: item.tag || "",
-//         vendor: item.vendor || "",
-//         qty: item.qty || 1,
-//         description: item.description || "",
-//         item: item.item || "",
-//         type: item.type || "",
-//         series: item.series || "",
-//         model: item.model || "",
-//         part_number: item.part_number || "",
-//         list_price: item.list_price || 0,
-//         multiplier: item.multiplier || 1,
-//         markup: item.markup || 0,
-//         freight: item.freight || 0,
-//         startup: item.startup || 0,
-//         surcharge: item.surcharge || 0,
-//         terms: item.terms || "FFA",
-//         notes: item.notes || "",
-//         included: item.included || false,
-//       });
-//     }
-
-//     setActiveQuoteId(newQuoteId);
-//     setDraftCopiedLineItems([]);
-//     setCopiedQuote(null);
-//     setShowCopiedRequired(false);
-//   }
-
-//   setQuoteForm(emptyQuote);
-//   await fetchQuotes();
-// }
-
-// async function saveQuote(e) {
-//   e.preventDefault();
-
-//   if (!isCopiedQuoteReadyToSave) return;
-
-//   setQuoteBusy(true);
-//   setQuoteMessage(editingQuoteId ? "Updating quote..." : "Saving new quote...");
-
-//   const payload = {
-//   ...quoteForm,
-//   bid_date: quoteForm.bid_date || "N/A",
-// };
-
-//   try {
-//     if (editingQuoteId) {
-//       // const res = await axios.put(`${API}/quotes/${editingQuoteId}`, quoteForm);
-//       const res = await axios.put(`${API}/quotes/${editingQuoteId}`, payload);
-//       setActiveQuoteId(res.data.id);
-//       setEditingQuoteId(null);
-//       setQuoteMessage("Quote updated successfully.");
-//     } else {
-//       // const res = await axios.post(`${API}/quotes`, quoteForm);
-//       const res = await axios.post(`${API}/quotes`, payload);
-//       const newQuoteId = res.data.id;
-
-//       for (const item of draftCopiedLineItems) {
-//         await axios.post(`${API}/quotes/${newQuoteId}/line-items`, {
-//           tag: item.tag || "",
-//           vendor: item.vendor || "",
-//           qty: item.qty || 1,
-//           description: item.description || "",
-//           item: item.item || "",
-//           type: item.type || "",
-//           series: item.series || "",
-//           model: item.model || "",
-//           part_number: item.part_number || "",
-//           list_price: item.list_price || 0,
-//           multiplier: item.multiplier || 1,
-//           markup: item.markup || 0,
-//           freight: item.freight || 0,
-//           startup: item.startup || 0,
-//           surcharge: item.surcharge || 0,
-//           terms: item.terms || "FOB",
-//           notes: item.notes || "",
-//           included: item.included || false,
-//         });
-//       }
-
-//       setActiveQuoteId(newQuoteId);
-//       setDraftCopiedLineItems([]);
-//       setCopiedQuote(null);
-//       setShowCopiedRequired(false);
-//       setQuoteMessage("Quote saved successfully.");
-//     }
-
-//     setQuoteForm(emptyQuote);
-//     await fetchQuotes();
-//   } catch (err) {
-//     console.error(err);
-//     setQuoteMessage("Unable to save quote. Please try again.");
-//   } finally {
-//     setQuoteBusy(false);
-//     setTimeout(() => setQuoteMessage(""), 2500);
-//   }
-// }
-
 async function saveQuote(e) {
   e.preventDefault();
 
@@ -952,24 +803,6 @@ async function saveQuote(e) {
   }
 }
 
-//   function editQuote(q) {
-//     setEditingQuoteId(q.id);
-//     setActiveQuoteId(q.id);
-
-//     setQuoteForm({
-//       bid_date: q.bid_date || "N/A",
-//       // contact: Array.isArray(q.contact) ? q.contact : [],
-// contact: contactToArray(q.contact || activeQuote?.contact),
-//       project: q.project || "",
-//       to_company: q.to_company || "",
-//       attention: q.attention || "",
-//       location: q.location || "",
-//       status: q.status || "Not Started",
-//       notes: q.notes || "",
-//       date: q.date || "",
-//     });
-//     navigate("/");
-//   }
 
 async function editQuote(q) {
   setLoading(true);
@@ -1036,12 +869,7 @@ async function editQuote(q) {
   setEditingLineItemId(null);
 }
 
-  // async function deleteQuote(id) {
-  //   if (!confirm("Delete this quote?")) return;
-  //   await axios.delete(`${API}/quotes/${id}`);
-  //   if (activeQuoteId === id) setActiveQuoteId(null);
-  //   await fetchQuotes();
-  // }
+
 
   async function deleteQuote(id) {
   if (!confirm("Delete this quote?")) return;
@@ -1092,25 +920,6 @@ async function editQuote(q) {
     }));
   }
 
-  // async function saveLineItem(e) {
-  //   e.preventDefault();
-  //   if (!activeQuoteId) {
-  //     // alert("Save or select a quote first.");
-  //     return;
-  //   }
-
-  //   const payload = { ...lineItemForm };
-
-  //   if (editingLineItemId) {
-  //     await axios.put(`${API}/line-items/${editingLineItemId}`, payload);
-  //     setEditingLineItemId(null);
-  //   } else {
-  //     await axios.post(`${API}/quotes/${activeQuoteId}/line-items`, payload);
-  //   }
-
-  //   setLineItemForm(emptyLineItem);
-  //   await refreshActiveQuote();
-  // }
 
   async function saveLineItem(e) {
   e.preventDefault();
@@ -1148,17 +957,6 @@ async function editQuote(q) {
     setLineItemForm({ ...emptyLineItem, ...item });
   }
 
-  // async function deleteLineItem(id) {
-  //   if (!confirm("Delete this line item?")) return;
-  //   await axios.delete(`${API}/line-items/${id}`);
-  //   await fetchQuotes();
-  // }
-//   async function deleteLineItem(id) {
-//   if (!confirm("Delete this line item?")) return;
-
-//   await axios.delete(`${API}/line-items/${id}`);
-//   await refreshActiveQuote();
-// }
 async function deleteLineItem(id) {
   if (!confirm("Delete this line item?")) return;
 
@@ -1586,10 +1384,6 @@ if (loading) {
     const contentWidth = pageWidth - marginLeft - marginRight;
     const totalPages = 3;
 
-    // const pageHeader = () => {
-    //   doc.addImage(hteLogo, "JPEG", marginLeft, 25, 120, 45);
-    //   doc.addImage(hteAddress, "PNG", pageWidth - marginRight - 190, 25, 190, 45);
-    // };
     const pageHeader = () => {
   doc.addImage(hteLogo, "JPEG", marginLeft, 20, 150, 55); // bigger logo
   // doc.addImage(hteAddress, "PNG", pageWidth - marginRight - 230, 20, 230, 55); // bigger address
@@ -1620,12 +1414,9 @@ const titleY = 110;
 const topLineY = titleY - 18;
 const bottomLineY = titleY + 8;
 
-// doc.setDrawColor(47, 111, 99);
-// doc.setLineWidth(1);
 doc.setDrawColor(20, 80, 60); // darker green
 doc.setLineWidth(2);          // thicker line
-// doc.setDrawColor(15, 70, 50);
-// doc.setLineWidth(2.5);
+
 
 const tableLeft = marginLeft;
 const tableRight = pageWidth - marginRight;
@@ -1755,234 +1546,17 @@ doc.setTextColor(0, 0, 0);
 
 doc.setFont("helvetica", "bold");
 doc.setFontSize(9);
-doc.text(
-  "NO SPECIFICATIONS PROVIDED",
-  pageWidth / 2,
-  y,
-  { align: "center" }
-);
+if (quote.showNoSpec !== false) {
+  doc.text(
+    "NO SPECIFICATIONS PROVIDED",
+    pageWidth / 2,
+    y,
+    { align: "center" }
+  );
+  y += 12;
+}
 
 
-
-// y += 12;
-
-// autoTable(doc, {
-//   startY: y,
-//   margin: { left: marginLeft - 10, right: marginRight -10 },
-//   // theme: "grid",
-//   theme: "plain",
-//   head: [["TAG:", "QTY:", "DESCRIPTION:", "NET EACH", "EXT. TOTAL"]],
-// body: [...(quote.line_items || [])]
-//   .map((item) => [
-//   item.tag || "",
-//   Number(item.qty) > 0 ? item.qty : "",
-//   (item.description || "")
-//     .replace(/\r\n/g, "\n")
-//     .replace(/\r/g, "\n")
-//     .replace(/[ \t]+/g, " ")
-//     .replace(/\n{3,}/g, "\n\n")
-//     .replace(/(^|\n)-\s+/g, "$1• ")
-//     .trim(),
-//   // formatMoney(item.sell_price),
-//   // formatMoney(item.total_price),
-// item.included ? "Included" : formatMoney(item.sell_price),
-// item.included ? "Included" : formatMoney(item.total_price),
-// ]),
-    
-
-//   styles: {
-//     font: "helvetica",
-//     fontSize: 8,
-//     cellPadding: { top: 8, bottom: 8, left: 4, right: 4 },
-//     textColor: [0, 0, 0],
-//     lineColor: [0, 0, 0],
-//     halign: "left",
-//     // lineWidth: 0.4,
-//   },
-//   headStyles: {
-//     fillColor: [230, 230, 230],
-//     textColor: [0, 0, 0],
-//     fontStyle: "bold",
-//     halign: "center",
-//   },
-//   columnStyles: {
-//     // 0: { cellWidth: 80 },
-//     0: { cellWidth: 85, cellPadding: { left: 10, right: 4, top: 8, bottom: 8 }, fontStyle: "bold" },
-//     1: { cellWidth: 40, halign: "center", fontStyle: "bold" },
-//     2: { cellWidth: 295, halign: "left" },
-//     3: { cellWidth: 70, halign: "center" },
-//     4: { cellWidth: 70, halign: "center", fontStyle: "bold" },
-//   },
-//   bodyStyles: {
-//     valign: "top",
-//   },
-
-// //   didParseCell: function (data) {
-
-    
-// //   // DESCRIPTION column only
-// //   if (data.section === "body" && data.column.index === 2) {
-// //     const text = Array.isArray(data.cell.text)
-// //       ? data.cell.text.join(" ")
-// //       : String(data.cell.text || "");
-
-// //     // if contains bullet
-// //     if (text.includes("•")) {
-// //       data.cell.styles.fontStyle = "italic";
-// //     }
-// //   }
-// // },
-
-// // didParseCell: function (data) {
-// //   if (data.section === "body" && data.column.index === 2) {
-// //     const raw = String(data.row.raw[2] || "");
-
-// //     if (raw.includes("||")) {
-// //       // hide original text so custom text does not print twice
-// //       data.cell.styles.textColor = [255, 255, 255];
-// //     } else if (raw.includes("•")) {
-// //       // fallback: italicize full cell if no custom bold separator
-// //       data.cell.styles.fontStyle = "italic";
-// //     }
-// //   }
-// // },
-
-// didParseCell: function (data) {
-
-//   // reset every cell to normal first
-//   // data.cell.styles.fontStyle = "normal";
-
-//   // TAG column - hide only marked lines from autoTable
-//   if (data.section === "body" && data.column.index === 0) {
-//     const raw = String(data.cell.raw || "");
-
-//     data.cell.text = raw
-//       .split("\n")
-//       .map((line) => {
-//         // if (line.trim().startsWith("!")) return " ";
-//         // return line.trim();
-//         return line.replace("!", "").trim();
-//       });
-//   }
-
-//   // DESCRIPTION column
-// // DESCRIPTION column
-// if (data.section === "body" && data.column.index === 2) {
-//   const raw = String(data.cell.raw || "");
-
-//   if (raw.includes("||")) {
-//     data.cell.text = data.cell.text.map((line) =>
-//       String(line).replace(/\|\|/g, "")
-//     );
-//   }
-
-//   data.cell.text = data.cell.text.map((line) => {
-//   if (String(line).trim().startsWith("•")) {
-//     return "   " + line;
-//   }
-//   return line;
-// });
-
-// }
-// },
-
-// // didDrawCell: function (data) {
-
-
-// //   // TAG column - yellow + bold only line with *
-
-// //   if (
-// //   data.section === "body" &&
-// //   data.column.index === 0 &&
-// //   data.cell.raw !== undefined &&
-// //   data.cell.raw !== null
-// // ) {
-// //     const raw = String(data.row.raw[0] || "");
-// //     const lines = raw.split("\n");
-
-// //     const x = data.cell.x + 10;
-// //     let y = data.cell.y + 11;
-// //     const lineHeight = 8.5;
-
-// //     lines.forEach((line) => {
-// //       const isMarked = line.trim().startsWith("!");
-// //       const cleanLine = line.replace(/^\!/, "").trim();
-
-// //       if (isMarked && cleanLine) {
-// //         doc.setFont("helvetica", "bold");
-// //         doc.setFontSize(8);
-
-// //         const textWidth = doc.getTextWidth(cleanLine);
-
-// //         doc.setFillColor(255, 255, 0);
-// //         doc.rect(x - 1, y - 6, textWidth + 3, 8, "F");
-
-// //         doc.setTextColor(0, 0, 0);
-// //         doc.text(cleanLine, x, y);
-// //       }
-
-// //       y += lineHeight;
-// //     });
-// //   }
-
-  
-  
-
-// // //   if (data.section !== "body") return;
-// // //   if (data.column.index !== 2) return;
-
-// // //   // ✅ Do not custom-draw repeated/continued rows on new page
-// // // if (data.cell.raw === undefined || data.cell.raw === null) return;
-
-// // //   const raw = String(data.row.raw[2] || "");
-// // //   if (!raw.includes("||")) return;
-
-// // //   const [boldPart, ...restParts] = raw.split("||");
-// // //   const boldText = boldPart.trim();
-// // //   const normalText = restParts.join("||").trim();
-
-// // //   const x = data.cell.x + 3;
-// // //   let y = data.cell.y + 8;
-// // //   const maxWidth = data.cell.width - 6;
-// // //   const lineHeight = 8.5;
-
-// // //   doc.setTextColor(0, 0, 0);
-
-// // //   doc.setFont("helvetica", "bold");
-// // //   doc.text(boldText, x, y);
-
-// // //   const boldWidth = doc.getTextWidth(boldText + " ");
-
-// // //   doc.setFont("helvetica", "normal");
-
-// // //   const normalLines = doc.splitTextToSize(normalText, maxWidth - boldWidth);
-
-// // //   if (normalLines.length > 0) {
-// // //     doc.text(normalLines[0], x + boldWidth, y);
-// // //   }
-
-// // //   y += lineHeight;
-
-// //   // const remainingText = normalLines.slice(1).join(" ");
-// //   // const remainingLines = doc.splitTextToSize(remainingText, maxWidth);
-
-// //   // remainingLines.forEach((line) => {
-// //   //   const trimmed = line.trim();
-
-// //   //   if (trimmed.startsWith("•")) {
-// //   //     doc.setFont("helvetica", "italic");
-// //   //   } else {
-// //   //     doc.setFont("helvetica", "normal");
-// //   //   }
-
-// //   //   doc.text(line, x, y);
-// //   //   y += lineHeight;
-// //   // });
-// // // },
-
-  
-
-// });
 // ==================== MANUAL TABLE ====================
 
 y += 12;
@@ -1996,25 +1570,24 @@ doc.setFontSize(9);
 doc.setTextColor(0, 0, 0);
 
 const tableTop = y + 11;
+
+
 const colX = [
-  marginLeft - 8,            // TAG
-  marginLeft + 85,           // QTY
-  marginLeft + 115,          // DESCRIPTION (start)
-  pageWidth - marginRight - 110, // NET EACH (moved right)
-  pageWidth - marginRight - 30   // EXT. TOTAL (moved right)
+  marginLeft - 5,             // TAG          ← Increased width
+  marginLeft + 98,            // QTY
+  marginLeft + 130,           // DESCRIPTION
+  pageWidth - marginRight - 92,  // NET EACH     ← Reduced
+  pageWidth - marginRight - 20   // EXT. TOTAL   ← Reduced
 ];
 
 doc.text("TAG", colX[0] + 8, tableTop);
 doc.text("QTY", colX[1], tableTop, { align: "center" });
-doc.text("DESCRIPTION", colX[2] + 150, tableTop, { align: "center" });
+doc.text("DESCRIPTION", colX[2] + 130, tableTop, { align: "center" });
 doc.text("NET EACH", colX[3], tableTop, { align: "center" });
 doc.text("EXT. TOTAL", colX[4], tableTop, { align: "center" });
 
 // Header line
 y += 15;
-// doc.setDrawColor(0, 0, 0);
-// doc.setLineWidth(0.8);
-// doc.line(marginLeft - 10, y, pageWidth - marginRight + 10, y);
 
 y += 10;
 
@@ -2033,110 +1606,64 @@ const descMaxWidth = 300;   // Description width DATI AY 300 WORKING
   let startY = y;
   let currentY = startY;
 
-  rawLines.forEach((line, lineIndex) => {
+  rawLines.forEach((line) => {
     const trimmed = line.trim();
+    if (!trimmed) {
+      currentY += tableLineHeight;
+      return;
+    }
 
-    if (trimmed.startsWith("-")) {
+    if (trimmed.startsWith("•") || trimmed.startsWith("-")) {
+      // Bullet = Italic
       doc.setFont("helvetica", "italic");
-      const bulletText = "• " + trimmed.substring(1).trim();
-      
-      const bulletIndent = colX[2] + 18;           // position of bullet
-      const textIndent   = colX[2] + 24;           // hanging indent for wrapped lines
+      const bulletText = "• " + trimmed.replace(/^[•-]\s*/, "").trim();
+      const wrapped = doc.splitTextToSize(bulletText, descMaxWidth - 30);
 
-      const wrapped = doc.splitTextToSize(bulletText, descMaxWidth - 40);
+      const bulletIndent = colX[2] + 12;
+      const wrapIndent   = colX[2] + 17;   // your preferred
 
       wrapped.forEach((wrappedLine, i) => {
         if (i === 0) {
-          // First line with bullet
           doc.text(wrappedLine, bulletIndent, currentY);
         } else {
-          // Wrapped lines - indented under the text
-          doc.text(wrappedLine, textIndent, currentY);
+          doc.text(wrappedLine, wrapIndent, currentY);
         }
         currentY += tableLineHeight;
       });
     } 
-    else if (lineIndex === 0) {
-      // First sentence bold
+    else {
+      // === BOLD FIRST SENTENCE WITH PROPER WRAPPING ===
       doc.setFont("helvetica", "bold");
       
-      let splitIndex = trimmed.search(/[,.]/);
+      let splitIndex = trimmed.search(/[.,]/);
       if (splitIndex === -1) splitIndex = trimmed.length;
 
-      const boldPart = trimmed.substring(0, splitIndex + 1);
+      const boldPart = trimmed.substring(0, splitIndex + 1).trim();
       const restPart = trimmed.substring(splitIndex + 1).trim();
 
-      // doc.text(boldPart, colX[2], currentY);
-
-
-
-
-
-// Wrap bold part if long
-      const boldMaxWidth = descMaxWidth - 25;
-      const boldWrapped = doc.splitTextToSize(boldPart, boldMaxWidth);
-
-      boldWrapped.forEach((line, index) => {
-        doc.text(line, colX[2], currentY);
-        if (index < boldWrapped.length - 1) {
-          currentY += tableLineHeight;
-        }
-      });
-
-
-
-
-
-
-
-
-
-      if (restPart) {
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(8.5);
-        const fullRest = " " + restPart;
-        
-        // First line after bold (narrower because of bold text)
-        const firstLineWidth = descMaxWidth - doc.getTextWidth(boldPart) - 30;
-        let wrappedRest = doc.splitTextToSize(fullRest, firstLineWidth);
-
-        // Print first continuation
-        doc.text(wrappedRest[0], colX[2] + doc.getTextWidth(boldPart) + 14, currentY);
-
-        // Remaining text - use FULL WIDTH
-        if (wrappedRest.length > 1) {
-          const remainingText = wrappedRest.slice(1).join(" ");
-          const fullWidthWrapped = doc.splitTextToSize(remainingText, descMaxWidth - 30);
-
-          for (let i = 0; i < fullWidthWrapped.length; i++) {
-            currentY += tableLineHeight;
-            doc.text(fullWidthWrapped[i], colX[2], currentY);
-          }
-        }
-      }
-      currentY += tableLineHeight;
-    } 
-
-
-    
-    else {
-      // Normal lines
-      doc.setFont("helvetica", "normal");
-      const wrapped = doc.splitTextToSize(trimmed, descMaxWidth);
-      wrapped.forEach(wrappedLine => {
-        doc.text(wrappedLine, colX[2] + 5, currentY);
+      // Bold part - wrap if long
+      const boldWrapped = doc.splitTextToSize(boldPart, descMaxWidth - 30);
+      boldWrapped.forEach((line) => {
+        doc.text(line, colX[2] + 5, currentY);
         currentY += tableLineHeight;
       });
+
+      // Rest of text
+      if (restPart) {
+        doc.setFont("helvetica", "normal");
+        const restWrapped = doc.splitTextToSize(restPart, descMaxWidth - 30);
+        restWrapped.forEach((line) => {
+          doc.text(line, colX[2] + 5, currentY);   // aligned under description
+          currentY += tableLineHeight;
+        });
+      }
     }
   });
 
-  // Draw fixed columns (aligned to top)
-  // TAG with wrapping
+  // Fixed columns (TAG, QTY, etc.)
   doc.setFont("helvetica", "bold");
   const tagText = item.tag || "";
-  const tagMaxWidth = 70;   // adjust if needed (bigger = more space)
-
-  const wrappedTag = doc.splitTextToSize(tagText, tagMaxWidth);
+  const wrappedTag = doc.splitTextToSize(tagText, 70);
 
   wrappedTag.forEach((line, i) => {
     doc.text(line, colX[0] + 8, startY + 1 + (i * tableLineHeight));
@@ -2150,32 +1677,17 @@ const descMaxWidth = 300;   // Description width DATI AY 300 WORKING
   doc.setFont("helvetica", "bold");
   doc.text(extPrice, colX[4], startY + 1, { align: "center" });
 
-  // IMPORTANT: Adjust row height based on tallest content (TAG or DESCRIPTION)
-  // const tagHeight = wrappedTag.length * tableLineHeight;
-  // y = Math.max(currentY, startY + tagHeight + 28);   // ← Ito ang susi
-
   const tagHeight = wrappedTag.length * tableLineHeight;
   const descHeight = currentY - startY;
+  y = startY + Math.max(tagHeight, descHeight) + 12;
 
-  y = startY + Math.max(tagHeight, descHeight) + 12;   // ← Ito ang susi (adjust 18)
-
-
-  // Separator -- 
-  // doc.setDrawColor(220, 220, 220);
-  // doc.setLineWidth(0.4);
-  // doc.line(marginLeft - 5, y, pageWidth - marginRight + 5, y);
   y += 8;
 
-  // Page break check
-  if (y > doc.internal.pageSize.height - 50) {
+  if (y > doc.internal.pageSize.height - 60) {
     doc.addPage();
     y = 40;
   }
 });
-
-y += 20;
-
-y += 12;
 
 // ==================== PRICING NOTES + TOTAL ====================
 
@@ -2344,12 +1856,6 @@ const totalDashPages = Math.ceil(quotes.length / dashPageSize) || 1;
             <p><strong>Created This Week:</strong> {createdThisWeek.length} | ${((createdThisWeek.reduce((sum, q) => sum + (Number(q.total) || 0), 0)) / 1000).toFixed(0)}K</p>
           </div>
 
-          {/* <div className="performance-card">
-            <h3>💰 Performance</h3>
-            <p><strong>🏆 Won Revenue (YTD):</strong> ${(wonValue / 1_000_000).toFixed(1)}M</p>
-            <p><strong>📈 Win Rate:</strong> {winRate}%</p>
-            <p><strong>📊 Average Quote Value:</strong> ${Math.round(totalValue / (totalQuotes || 1)).toLocaleString()}</p>
-          </div> */}
         </div>
       </div>
 
@@ -2532,7 +2038,7 @@ const totalDashPages = Math.ceil(quotes.length / dashPageSize) || 1;
     🔒 {q.locked_by} is here
   </span>
 )}
-                    {/* <button className="btn delete" onClick={() => deleteQuote(q.id)}>Delete</button> */}
+                   
                     <button
   className="btn delete"
   disabled={deletingQuoteId === q.id}
@@ -2728,14 +2234,7 @@ const totalDashPages = Math.ceil(quotes.length / dashPageSize) || 1;
   </div>
 </label>
 
-        {/* <label>
-          Outside Sales Contact(s)
-          <input
-            placeholder="Contacts, comma separated"
-            value={formatContact(quoteForm.contact)}
-            onChange={handleQuoteContactInput}
-          />
-        </label> */}
+
 
 <label
   className={
@@ -2797,15 +2296,7 @@ const current = contactToArray(quoteForm.contact);
   />
 </label>
 
-        {/* <label>
-          Bid Due Date
-          <input
-            name="bid_date"
-            placeholder="Bid Due Date"
-            value={quoteForm.bid_date}
-            onChange={updateForm(setQuoteForm)}
-          />
-        </label> */}
+
 
         
 <label>
@@ -2845,6 +2336,8 @@ const current = contactToArray(quoteForm.contact);
             onChange={updateForm(setQuoteForm)}
           />
         </label>
+
+        
 
 
 
@@ -2970,8 +2463,7 @@ const current = contactToArray(quoteForm.contact);
       </div>
     </div>
 
-    {/* <form className="card line-grid" onSubmit={saveLineItem}>
-      <h3>Line Item {activeQuote ? `for ${activeQuote.quote_number}` : ""}</h3> */}
+
       {lineItemMessage && (
   <div className="line-item-message">
     {lineItemMessage}
@@ -2996,6 +2488,7 @@ const current = contactToArray(quoteForm.contact);
           placeholder="Tag"
           value={lineItemForm.tag}
           onChange={updateForm(setLineItemForm)}
+          rows={4}
         />
       </label>
 
@@ -3076,6 +2569,7 @@ const current = contactToArray(quoteForm.contact);
           onChange={updateForm(setLineItemForm)}
         />
       </label>
+
 
       <label>
         List Price
@@ -3161,15 +2655,17 @@ const current = contactToArray(quoteForm.contact);
         </select>
       </label>
 
-      <label>
-        Notes
-        <input
-          name="notes"
-          placeholder="Notes"
-          value={lineItemForm.notes}
-          onChange={updateForm(setLineItemForm)}
-        />
-      </label>
+<label>
+  Notes
+  <textarea
+    name="notes"
+    placeholder="Notes"
+    value={lineItemForm.notes}
+    onChange={updateForm(setLineItemForm)}
+    rows={4}                    // You can change this to 3 or 4 if you want more space
+    style={{ resize: "vertical", minHeight: "50px" }}
+  />
+</label>
 
       <label className="check">
         <input
@@ -3186,11 +2682,55 @@ const current = contactToArray(quoteForm.contact);
         Total: {money(calculatedPreview.total)}
       </div>
 
-      <button className="btn primary">
-        {editingLineItemId ? "Update Line Item" : "Add Line Item"}
-      </button>
+<div className="button-row" style={{ marginTop: "15px" }}>
+  <button className="btn primary">
+    {editingLineItemId ? "Update Line Item" : "Add Line Item"}
+  </button>
+
+  {editingLineItemId && (
+    <button 
+      type="button" 
+      className="btn secondary"
+      onClick={() => {
+        setEditingLineItemId(null);
+        setLineItemForm(emptyLineItem);
+      }}
+    >
+      Cancel
+    </button>
+  )}
+</div>
     </form>
     </div>
+
+{/* <div style={{ 
+      gridColumn: "1 / -1", 
+      display: "flex", 
+      justifyContent: "center", 
+      alignItems: "center",
+      margin: "20px 0 25px 0",
+      padding: "12px 0",
+      backgroundColor: "#f8f9fa",
+      borderRadius: "8px"
+    }}>
+      <label className="check" style={{ 
+        fontSize: "1.15rem", 
+        fontWeight: "600", 
+        display: "flex", 
+        alignItems: "center", 
+        gap: "12px", 
+        cursor: "pointer" 
+      }}>
+        <input
+          type="checkbox"
+          name="showNoSpec"
+          checked={quoteForm.showNoSpec !== false}
+          onChange={updateForm(setQuoteForm)}
+          style={{ width: "22px", height: "22px", accentColor: "red" }}
+        />
+        No Specifications Provided
+      </label>
+    </div> */}
 
     {(activeQuote || isCopyDraft) && (
       <div className="card table-wrap">
@@ -3200,22 +2740,23 @@ const current = contactToArray(quoteForm.contact);
           <thead>
             <tr>
               <th></th>
+                            {/* <th>Item</th>
+              <th>Vendor</th> */}
               <th>Tag</th>
-              <th>Item</th>
-              <th>Vendor</th>
-              <th>Qty</th>
               <th>Description</th>
               <th>List</th>
               <th>Surcharge</th>
               <th>Multiplier</th>
               <th>Net</th>
               <th>Markup</th>
-              <th>Freight</th>
+  
               <th>Startup</th>
+                          <th>Freight</th>
               <th>Terms</th>
               <th>Sell</th>
+                            <th>Qty</th>
               <th>Total</th>
-              <th>Line Item Notes</th>
+              <th>Notes</th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -3232,11 +2773,11 @@ const current = contactToArray(quoteForm.contact);
                 >
                   ☰
                 </td>
-
+                {/* <td>{item.item}</td>
+                <td>{item.vendor}</td> */}
                 <td>{item.tag}</td>
-                <td>{item.item}</td>
-                <td>{item.vendor}</td>
-                <td>{item.qty}</td>
+
+             
 
                 <td className="description-cell">{getLineDescription(item)}</td>
 
@@ -3257,12 +2798,14 @@ const current = contactToArray(quoteForm.contact);
                     : ""}
                 </td>
 
-                <td>{money(item.freight)}</td>
+             
                 <td>{money(item.startup)}</td>
+                   <td>{money(item.freight)}</td>
                 <td>{item.terms || ""}</td>
                 <td>{item.included ? "Included" : money(item.sell_price)}</td>
+                   <td>{item.qty}</td>
                 <td>{item.included ? "Included" : money(item.total_price)}</td>
-                <td>{item.noteLineItem}</td>
+                <td>{item.notes}</td>
 
                 <td>
                   <button
@@ -3314,8 +2857,502 @@ const current = contactToArray(quoteForm.contact);
 
 
 
-//   return <CrudTable type="contacts" />;
+//   function CrudTable({ type }) {
+
+//     const config = {
+//       products: {
+//         title: "Products",
+//         search: productSearch,
+//         setSearch: setProductSearch,
+//         refresh: () => fetchProducts(productSearch),
+//         endpoint: "products",
+//         form: productForm,
+//         setForm: setProductForm,
+//         empty: emptyProduct,
+//         editingId: editingProductId,
+//         setEditingId: setEditingProductId,
+//         rows: products,
+//         fields: ["name", "category", "type", "series", "model", "part_number", "description", "notes", "tag", "list_price", "multiplier", "surcharge", "vendor", "manufacturer", ],
+//       },
+//       notes: {
+//         title: "Notes Library",
+//         search: noteSearch,
+//         setSearch: setNoteSearch,
+//         refresh: () => fetchNotes(noteSearch),
+//         endpoint: "notes-library",
+//         form: noteForm,
+//         setForm: setNoteForm,
+//         empty: emptyNote,
+//         editingId: editingNoteId,
+//         setEditingId: setEditingNoteId,
+//         rows: notes,
+//         fields: ["item", "type", "category", "series", "model", "note_type", "text", "sort_order"],
+//       },
+//       companies: {
+//         title: "Companies",
+//         search: companySearch,
+//         setSearch: setCompanySearch,
+//         refresh: () => fetchCompanies(companySearch),
+//         endpoint: "companies",
+//         form: companyForm,
+//         setForm: setCompanyForm,
+//         empty: emptyCompany,
+//         editingId: editingCompanyId,
+//         setEditingId: setEditingCompanyId,
+//         rows: companies,
+//         fields: ["name", "type", "city", "state", "website", "notes", "address1", "address2", "zipcode", "account_number", "payment_terms", ],
+//       },
+//       contacts: {
+//         title: "Contacts",
+//         search: contactSearch,
+//         setSearch: setContactSearch,
+//         refresh: () => fetchContacts(contactSearch),
+//         endpoint: "contacts",
+//         form: contactForm,
+//         setForm: setContactForm,
+//         empty: emptyContact,
+//         editingId: editingContactId,
+//         setEditingId: setEditingContactId,
+//         rows: contacts,
+//         fields: [
+//   "company_id",
+//   "first_name",
+//   "last_name",
+//   "role",
+//   "email",
+//   "notes",
+//   "tel",
+//   "mobile",
+// ],
+// displayFields: [
+//   "company_id",
+//   "company_name",
+//   "first_name",
+//   "last_name",
+//   "role",
+//   "email",
+//   "notes",
+//   "tel",
+//   "mobile",
+// ],
+//       },
+//     }[type];
+
+//     return (
+//       <section className="screen">
+//         <div className="toolbar">
+//           <input placeholder={`Search ${config.title}`} value={config.search} onChange={(e) => config.setSearch(e.target.value)} />
+//           <button className="btn primary" onClick={config.refresh}>Search</button>
+//         </div>
+
+//         <form className="card form-grid" onSubmit={(e) => saveCrud(e, config.endpoint, config.form, config.editingId, () => config.setForm(config.empty), config.refresh, config.setEditingId)}>
+//           <h3>{config.editingId ? `Edit ${config.title}` : `Add ${config.title}`}</h3>
+//           {type === "contacts" && (
+//             <select name="company_id" value={config.form.company_id} onChange={updateForm(config.setForm)}>
+//               <option value="">Select Company</option>
+//               {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+//             </select>
+//           )}
+//           {config.fields.filter((f) => !(type === "contacts" && f === "company_id")).map((field) => {
+//     const isLongField =
+//       field === "description" || field === "notes" || field === "text";
+
+//     const useProductLookup =
+//       type === "products" &&
+//       [
+//         "name",
+//         "tag",
+//         "vendor",
+//         "manufacturer",
+//         "category",
+//         "type",
+//         "series",
+//         "model",
+//         "part_number",
+//       ].includes(field);
+
+//       const useCompanyLookup =
+//   type === "companies" &&
+//   ["name", "city"].includes(field);
+
+//   if (type === "companies" && field === "state") {
+//   return (
+//     <select
+//       key={field}
+//       name={field}
+//       value={config.form[field] || ""}
+//       onChange={updateForm(config.setForm)}
+//     >
+//       <option value="">Select State</option>
+
+//       <option value="AL">AL</option>
+//       <option value="AK">AK</option>
+//       <option value="AZ">AZ</option>
+//       <option value="AR">AR</option>
+//       <option value="CA">CA</option>
+//       <option value="CO">CO</option>
+//       <option value="CT">CT</option>
+//       <option value="DE">DE</option>
+//       <option value="FL">FL</option>
+//       <option value="GA">GA</option>
+//       <option value="HI">HI</option>
+//       <option value="ID">ID</option>
+//       <option value="IL">IL</option>
+//       <option value="IN">IN</option>
+//       <option value="IA">IA</option>
+//       <option value="KS">KS</option>
+//       <option value="KY">KY</option>
+//       <option value="LA">LA</option>
+//       <option value="ME">ME</option>
+//       <option value="MD">MD</option>
+//       <option value="MA">MA</option>
+//       <option value="MI">MI</option>
+//       <option value="MN">MN</option>
+//       <option value="MS">MS</option>
+//       <option value="MO">MO</option>
+//       <option value="MT">MT</option>
+//       <option value="NE">NE</option>
+//       <option value="NV">NV</option>
+//       <option value="NH">NH</option>
+//       <option value="NJ">NJ</option>
+//       <option value="NM">NM</option>
+//       <option value="NY">NY</option>
+//       <option value="NC">NC</option>
+//       <option value="ND">ND</option>
+//       <option value="OH">OH</option>
+//       <option value="OK">OK</option>
+//       <option value="OR">OR</option>
+//       <option value="PA">PA</option>
+//       <option value="RI">RI</option>
+//       <option value="SC">SC</option>
+//       <option value="SD">SD</option>
+//       <option value="TN">TN</option>
+//       <option value="TX">TX</option>
+//       <option value="UT">UT</option>
+//       <option value="VT">VT</option>
+//       <option value="VA">VA</option>
+//       <option value="WA">WA</option>
+//       <option value="WV">WV</option>
+//       <option value="WI">WI</option>
+//       <option value="WY">WY</option>
+//     </select>
+//   );
 // }
+
+// const useNoteLookup =
+//   type === "notes" &&
+//   ["item", "type", "category", "series", "model"].includes(field);
+
+//   const noteLinkFields = ["type", "category", "series", "model"];
+
+// const activeNoteLinkField =
+//   type === "notes"
+//     ? noteLinkFields.find(
+//         (f) => String(config.form[f] || "").trim()
+//       )
+//     : null;
+
+// const isDisabledNoteLinkField =
+//   type === "notes" &&
+//   noteLinkFields.includes(field) &&
+//   activeNoteLinkField &&
+//   activeNoteLinkField !== field;
+  
+
+//     const placeholder =
+//       type === "products" || type === "notes"
+//         ? ({
+//             name: "Product Name e.g. Non-Condensing Hydronic Heating Boiler",
+//             category: "Category e.g. Boiler, Pump, Tank, Startup, Notes, Freight, Adders, Parts",
+//             type: "Type e.g. Condensing, End Suction, Storage Tank",
+//           }[field] || field)
+//         : field;
+
+//     if (isLongField) {
+//       return (
+//         <textarea
+//           key={field}
+//           name={field}
+//           placeholder={placeholder}
+//           value={config.form[field] || ""}
+//           onChange={updateForm(config.setForm)}
+//         />
+//       );
+//     }
+
+//     if (field === "note_type") {
+//       return (
+//         <select
+//           key={field}
+//           name={field}
+//           value={config.form[field] || "standard"}
+//           onChange={updateForm(config.setForm)}
+//         >
+//           <option value="standard">standard</option>
+//           <option value="additional">additional</option>
+//           <option value="exception">exception</option>
+//           <option value="internal">internal</option>
+//         </select>
+//       );
+//     }
+
+//     if (type === "companies" && field === "type") {
+//   return (
+//     <select
+//       key={field}
+//       name={field}
+//       value={config.form[field] || ""}
+//       onChange={updateForm(config.setForm)}
+//     >
+//       <option value="">Select Type</option>
+//       <option value="vendor">vendor</option>
+//       <option value="contractor">contractor</option>
+//       <option value="wholesaler">wholesaler</option>
+//       <option value="end-user">end-user</option>
+//     </select>
+//   );
+// }
+
+// if (useCompanyLookup) {
+//   const suggestions = uniqueCompanyValues(field, config.form[field]);
+
+//   return (
+//     <div key={field} className="lookup-field">
+//       <input
+//         name={field}
+//         placeholder={placeholder}
+//         value={config.form[field] || ""}
+//         onChange={(e) => {
+//   setActiveLookupField(`companies-${field}`);
+//   updateForm(config.setForm)(e);
+// }}
+//       />
+
+//       {activeLookupField === `companies-${field}` && suggestions.length > 0 && (
+//         <div className="lookup-results">
+//           {suggestions.map((value) => (
+//             <button
+//               type="button"
+//               key={value}
+//               className="lookup-option"
+//  onClick={() => {
+//   config.setForm((prev) => ({
+//     ...prev,
+//     [field]: value,
+//   }));
+//   setActiveLookupField(null);
+// }}
+//             >
+//               <strong>{value}</strong>
+//             </button>
+//           ))}
+//         </div>
+//       )}
+//     </div>
+//   );
+// }
+
+// if (useNoteLookup) {
+//   const suggestions = uniqueNoteValues(field, config.form[field]);
+
+//   return (
+//     <div key={field} className="lookup-field">
+// <input
+//   name={field}
+//   placeholder={placeholder}
+//   value={config.form[field] || ""}
+//   disabled={isDisabledNoteLinkField}
+//   title={
+//     isDisabledNoteLinkField
+//       ? "Only one filter may be used between Type, Category, Series, and Model."
+//       : ""
+//   }
+//   onChange={(e) => {
+//   setActiveLookupField(`notes-${field}`);
+//   updateForm(config.setForm)(e);
+// }}
+// />
+
+//       {activeLookupField === `notes-${field}` && suggestions.length > 0 && (
+//         <div className="lookup-results">
+//           {suggestions.map((value) => (
+//             <button
+//               type="button"
+//               key={value}
+//               className="lookup-option"
+//     onClick={() => {
+//   config.setForm((prev) => ({
+//     ...prev,
+//     [field]: value,
+//   }));
+//   setActiveLookupField(null);
+// }}
+//             >
+//               <strong>{value}</strong>
+//             </button>
+//           ))}
+//         </div>
+//       )}
+//     </div>
+//   );
+// }
+
+// if (useProductLookup) {
+//   const suggestions = uniqueProductValues(field, config.form[field]);
+
+//   return (
+//     <div key={field} className="lookup-field">
+//       <input
+//         name={field}
+//         placeholder={placeholder}
+//         value={config.form[field] || ""}
+//         onChange={(e) => {
+//   setActiveLookupField(`products-${field}`);
+//   updateForm(config.setForm)(e);
+// }}
+//       />
+
+//       {activeLookupField === `products-${field}` && suggestions.length > 0 && (
+//         <div className="lookup-results">
+//           {suggestions.map((value) => (
+//             <button
+//               type="button"
+//               key={value}
+//               className="lookup-option"
+// onClick={() => {
+//   config.setForm((prev) => ({
+//     ...prev,
+//     [field]: value,
+//   }));
+//   setActiveLookupField(null);
+// }}
+//             >
+//               <strong>{value}</strong>
+//             </button>
+//           ))}
+//         </div>
+//       )}
+//     </div>
+//   );
+// }
+
+// return (
+// <input
+//   key={field}
+//   name={field}
+//   placeholder={placeholder}
+//   value={config.form[field] || ""}
+//   disabled={isDisabledNoteLinkField}
+//   title={
+//     isDisabledNoteLinkField
+//       ? "Only one filter may be used between Type, Category, Series, and Model."
+//       : ""
+//   }
+//   onChange={updateForm(config.setForm)}
+// />
+// );
+
+
+
+//     if (useProductLookup) {
+//       const suggestions = uniqueProductValues(field, config.form[field]);
+
+//       return (
+//         <div key={field} className="lookup-field">
+//           <input
+//             name={field}
+//             placeholder={placeholder}
+//             value={config.form[field] || ""}
+//             onChange={updateForm(config.setForm)}
+//           />
+
+//           {suggestions.length > 0 && (
+//             <div className="lookup-results">
+//               {suggestions.map((value) => (
+//                 <button
+//                   type="button"
+//                   key={value}
+//                   className="lookup-option"
+//                   onClick={() =>
+//                     config.setForm((prev) => ({
+//                       ...prev,
+//                       [field]: value,
+//                     }))
+//                   }
+//                 >
+//                   <strong>{value}</strong>
+//                 </button>
+//               ))}
+//             </div>
+//           )}
+//         </div>
+//       );
+//     }
+
+//     return (
+//       <input
+//         key={field}
+//         name={field}
+//         placeholder={placeholder}
+//         value={config.form[field] || ""}
+//         onChange={updateForm(config.setForm)}
+//       />
+//     );
+//   })}
+//           <button className="btn primary">{config.editingId ? "Update" : "Add"}</button>
+//           <button
+//   type="button"
+//   className="btn secondary"
+//   onClick={() => {
+//     config.setEditingId(null);
+//     config.setForm(config.empty);
+//   }}
+// >
+//   Cancel
+// </button>
+//         </form>
+
+//         <div className="card table-wrap">
+//           <table className="data-table">
+//             <thead>
+//               {/* <tr>{config.fields.slice(0, 8).map((f) => <th key={f}>{f}</th>)}<th>Actions</th></tr> */}
+//               <tr>{(config.displayFields || config.fields).slice(0, 8).map((f) => <th key={f}>{f}</th>)}<th>Actions</th></tr>
+
+//             </thead>
+ 
+//             <tbody>
+//   {config.rows.map((row) => (
+//     <tr key={row.id}>
+//       {(config.displayFields || config.fields).slice(0, 8).map((f) => (
+//         <td key={f}>{String(row[f] ?? "")}</td>
+//       ))}
+//       <td>
+//         <button
+//           className="btn edit"
+//           onClick={() => {
+//             config.setEditingId(row.id);
+//             config.setForm({ ...config.empty, ...row });
+//           }}
+//         >
+//           Edit
+//         </button>
+//         <button
+//           className="btn delete"
+//           onClick={() =>
+//             deleteCrud(config.endpoint, row.id, config.refresh)
+//           }
+//         >
+//           Delete
+//         </button>
+//       </td>
+//     </tr>
+//   ))}
+// </tbody>
+//           </table>
+//         </div>
+//       </section>
+//     );
+//   }
 
   function CrudTable({ type }) {
 
@@ -3398,6 +3435,14 @@ displayFields: [
       },
     }[type];
 
+    // Pagination
+    const totalItems = config.rows.length;
+    const totalPages = Math.ceil(totalItems / crudPageSize) || 1;
+    const pagedRows = config.rows.slice(
+      (crudPage - 1) * crudPageSize,
+      crudPage * crudPageSize
+    );
+
     return (
       <section className="screen">
         <div className="toolbar">
@@ -3413,35 +3458,6 @@ displayFields: [
               {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           )}
-          {/* {config.fields.filter((f) => !(type === "contacts" && f === "company_id")).map((field) =>
-            field === "description" || field === "notes" || field === "text" ? (
-              <textarea key={field} name={field} placeholder={field} value={config.form[field] || ""} onChange={updateForm(config.setForm)} />
-            ) : field === "note_type" ? (
-              <select key={field} name={field} value={config.form[field] || "standard"} onChange={updateForm(config.setForm)}>
-                <option value="standard">standard</option>
-                <option value="additional">additional</option>
-                <option value="exception">exception</option>
-                <option value="internal">internal</option>
-              </select>
-            ) : (
-              // <input key={field} name={field} placeholder={field} value={config.form[field] || ""} onChange={updateForm(config.setForm)} />
-<input
-  key={field}
-  name={field}
-  placeholder={
-    type === "products" || type === "notes"
-      ? ({
-          name: "Product Name e.g. Non-Condensing Hydronic Heating Boiler",
-          category: "Category e.g. Boiler, Pump, Tank, Startup, Notes, Freight, Adders", 
-          type: "Type e.g. Condensing, End Suction, Storage Tank",
-        }[field] || field)
-      : field
-  }
-  value={config.form[field] || ""}
-  onChange={updateForm(config.setForm)}
-/>
-            )
-          )} */}
           {config.fields.filter((f) => !(type === "contacts" && f === "company_id")).map((field) => {
     const isLongField =
       field === "description" || field === "notes" || field === "text";
@@ -3740,54 +3756,7 @@ return (
   onChange={updateForm(config.setForm)}
 />
 );
-
-
-
-    if (useProductLookup) {
-      const suggestions = uniqueProductValues(field, config.form[field]);
-
-      return (
-        <div key={field} className="lookup-field">
-          <input
-            name={field}
-            placeholder={placeholder}
-            value={config.form[field] || ""}
-            onChange={updateForm(config.setForm)}
-          />
-
-          {suggestions.length > 0 && (
-            <div className="lookup-results">
-              {suggestions.map((value) => (
-                <button
-                  type="button"
-                  key={value}
-                  className="lookup-option"
-                  onClick={() =>
-                    config.setForm((prev) => ({
-                      ...prev,
-                      [field]: value,
-                    }))
-                  }
-                >
-                  <strong>{value}</strong>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      );
-    }
-
-    return (
-      <input
-        key={field}
-        name={field}
-        placeholder={placeholder}
-        value={config.form[field] || ""}
-        onChange={updateForm(config.setForm)}
-      />
-    );
-  })}
+          })}
           <button className="btn primary">{config.editingId ? "Update" : "Add"}</button>
           <button
   type="button"
@@ -3804,23 +3773,10 @@ return (
         <div className="card table-wrap">
           <table className="data-table">
             <thead>
-              {/* <tr>{config.fields.slice(0, 8).map((f) => <th key={f}>{f}</th>)}<th>Actions</th></tr> */}
               <tr>{(config.displayFields || config.fields).slice(0, 8).map((f) => <th key={f}>{f}</th>)}<th>Actions</th></tr>
-
             </thead>
-            {/* <tbody>
-              {config.rows.map((row) => (
-                <tr key={row.id}>
-                  {config.fields.slice(0, 8).map((f) => <td key={f}>{String(row[f] ?? "")}</td>)}
-                  <td>
-                    <button className="btn edit" onClick={() => { config.setEditingId(row.id); config.setForm({ ...config.empty, ...row }); }}>Edit</button>
-                    <button className="btn delete" onClick={() => deleteCrud(config.endpoint, row.id, config.refresh)}>Delete</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody> */}
             <tbody>
-  {config.rows.map((row) => (
+  {pagedRows.map((row) => (
     <tr key={row.id}>
       {(config.displayFields || config.fields).slice(0, 8).map((f) => (
         <td key={f}>{String(row[f] ?? "")}</td>
@@ -3848,6 +3804,14 @@ return (
   ))}
 </tbody>
           </table>
+
+          {totalPages > 1 && (
+            <div className="pagination">
+              <button className="btn secondary" disabled={crudPage === 1} onClick={() => setCrudPage(p => Math.max(1, p-1))}>Previous</button>
+              <span>Page {crudPage} of {totalPages}</span>
+              <button className="btn secondary" disabled={crudPage === totalPages} onClick={() => setCrudPage(p => Math.min(totalPages, p+1))}>Next</button>
+            </div>
+          )}
         </div>
       </section>
     );
@@ -3873,19 +3837,6 @@ return (
 </button>
         </nav>
       </header>
-
-{/* <Routes> */}
-  {/* <Route path="/" element={Builder()} />
-  <Route path="/dashboard" element={Dashboard()} /> */}
-  {/* <Route path="/companies" element={CrudTable({ type: "companies" })} />
-  <Route path="/contacts" element={CrudTable({ type: "contacts" })} />
-  <Route path="/products" element={CrudTable({ type: "products" })} />
-  <Route path="/notes" element={CrudTable({ type: "notes" })} /> */}
- {/* <Route path="/companies" element={<CompaniesPage />} />
-<Route path="/contacts" element={<ContactsPage />} />
-<Route path="/products" element={<ProductsPage />} />
-<Route path="/notes" element={<NotesPage />} /> */}
-{/* </Routes> */}
 
 <Routes>
   <Route path="/" element={Builder()} />
