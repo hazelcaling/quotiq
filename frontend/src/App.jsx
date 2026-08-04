@@ -13,7 +13,9 @@ import lastTwoPagesPdf from "./assets/last two page.pdf";
 import LoadingSpinner from "./LoadingSpinner";
 
 const API =
-  import.meta.env.VITE_API_URL || "http://localhost:5000";
+  import.meta.env.VITE_API_URL || 
+  "http://localhost:5000" || "http://127.0.0.1:5000"
+  ;
 
 axios.defaults.withCredentials = true;
 

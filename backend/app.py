@@ -6,6 +6,7 @@ from werkzeug.security import check_password_hash
 from flask import send_file
 from io import BytesIO
 import pandas as pd
+import json
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
 from openpyxl.utils import get_column_letter
 from sqlalchemy import or_
@@ -24,15 +25,17 @@ from config import Config
 
 app = Flask(__name__)
 app.config.from_object(Config)
+import os
 
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="None",
-    SESSION_COOKIE_SECURE=True,
+    # SESSION_COOKIE_SECURE=True,
+    SESSION_COOKIE_SECURE=os.environ.get("FLASK_ENV") != "development",
 )
 
 
-CORS(app, supports_credentials=True, origins=["https://quotiq.onrender.com", "http://localhost:5173",])
+CORS(app, supports_credentials=True, origins=["https://quotiq.onrender.com", "http://localhost:5173", "http://127.0.0.1:5173"])
 db.init_app(app)
 
 with app.app_context():
@@ -302,7 +305,7 @@ def get_quotes():
         query = query.filter(Quote.bid_date <= bid_date_to)
 
     if salesman:
-        query = query.filter(Quote.contact.contains([salesman]))
+        query = query.filter(Quote.contact.cast(db.String).ilike(f"%{salesman}%"))
 
     sort_map = {
         "id": Quote.id,
@@ -844,19 +847,32 @@ def logout():
     return jsonify({"message": "Logged out"})
 
 
+
+
 def format_contact(contact):
     if not contact:
         return ""
+
+    # Already a list
     if isinstance(contact, list):
         return ", ".join(str(x).strip() for x in contact if x)
+
+    # String that looks like a list: '["Mike Llorence"]' or '["A", "B"]'
     if isinstance(contact, str):
+        contact = contact.strip()
+
+        # Try to parse it as JSON
         try:
             parsed = json.loads(contact)
             if isinstance(parsed, list):
                 return ", ".join(str(x).strip() for x in parsed if x)
         except Exception:
             pass
-        return contact.strip()
+
+        # Fallback: remove [ ] and " characters
+        cleaned = contact.replace("[", "").replace("]", "").replace('"', "").replace("'", "")
+        return cleaned.strip()
+
     return str(contact)
 
 def apply_quote_filters(query):
@@ -896,7 +912,7 @@ def apply_quote_filters(query):
         query = query.filter(Quote.location.ilike(f"%{location}%"))
 
     if salesman:
-        query = query.filter(Quote.contact.contains([salesman]))
+        query = query.filter(Quote.contact.cast(db.String).ilike(f"%{salesman}%"))
 
     if quote_date_from:
         query = query.filter(Quote.date >= datetime.strptime(quote_date_from, "%Y-%m-%d").date())
