@@ -3,6 +3,11 @@ from datetime import datetime
 from flask_cors import CORS
 from flask import session
 from werkzeug.security import check_password_hash
+from flask import send_file
+from io import BytesIO
+import pandas as pd
+from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
+from openpyxl.utils import get_column_letter
 from sqlalchemy import or_
 from models import (
     db,
@@ -249,6 +254,8 @@ def get_quotes():
     customer = request.args.get("customer", "").strip()
     location = request.args.get("location", "").strip()
 
+    salesman = request.args.get("salesman", "").strip()
+
     quote_date_from = request.args.get("quote_date_from", "").strip()
     quote_date_to = request.args.get("quote_date_to", "").strip()
     bid_date_from = request.args.get("bid_date_from", "").strip()
@@ -293,6 +300,9 @@ def get_quotes():
 
     if bid_date_to:
         query = query.filter(Quote.bid_date <= bid_date_to)
+
+    if salesman:
+        query = query.filter(Quote.contact.contains([salesman]))
 
     sort_map = {
         "id": Quote.id,
@@ -832,6 +842,208 @@ def auth_me():
 def logout():
     session.clear()
     return jsonify({"message": "Logged out"})
+
+
+def format_contact(contact):
+    if not contact:
+        return ""
+    if isinstance(contact, list):
+        return ", ".join(str(x).strip() for x in contact if x)
+    if isinstance(contact, str):
+        try:
+            parsed = json.loads(contact)
+            if isinstance(parsed, list):
+                return ", ".join(str(x).strip() for x in parsed if x)
+        except Exception:
+            pass
+        return contact.strip()
+    return str(contact)
+
+def apply_quote_filters(query):
+    """Reuse the same filters used by get_quotes"""
+    search = request.args.get("search", "").strip()
+    line_search = request.args.get("line_search", "").strip()
+    status = request.args.get("status", "").strip()
+    customer = request.args.get("customer", "").strip()
+    location = request.args.get("location", "").strip()
+    salesman = request.args.get("salesman", "").strip()
+    quote_date_from = request.args.get("quote_date_from", "").strip()
+    quote_date_to = request.args.get("quote_date_to", "").strip()
+    bid_date_from = request.args.get("bid_date_from", "").strip()
+    bid_date_to = request.args.get("bid_date_to", "").strip()
+
+    if search:
+        like = f"%{search}%"
+        query = query.filter(
+            or_(
+                Quote.quote_number.ilike(like),
+                Quote.project.ilike(like),
+                Quote.attention.ilike(like),
+            )
+        )
+
+    if line_search:
+        like = f"%{line_search}%"
+        query = query.join(LineItem).filter(LineItem.description.ilike(like))
+
+    if status:
+        query = query.filter(Quote.status == status)
+
+    if customer:
+        query = query.filter(Quote.to_company.ilike(f"%{customer}%"))
+
+    if location:
+        query = query.filter(Quote.location.ilike(f"%{location}%"))
+
+    if salesman:
+        query = query.filter(Quote.contact.contains([salesman]))
+
+    if quote_date_from:
+        query = query.filter(Quote.date >= datetime.strptime(quote_date_from, "%Y-%m-%d").date())
+
+    if quote_date_to:
+        query = query.filter(Quote.date <= datetime.strptime(quote_date_to, "%Y-%m-%d").date())
+
+    if bid_date_from:
+        query = query.filter(Quote.bid_date >= bid_date_from)
+
+    if bid_date_to:
+        query = query.filter(Quote.bid_date <= bid_date_to)
+
+    return query.distinct()
+
+
+def style_excel_worksheet(ws):
+    """Make the Excel look clean"""
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill("solid", fgColor="1F4E79")
+    thin = Border(
+        left=Side(style='thin'),
+        right=Side(style='thin'),
+        top=Side(style='thin'),
+        bottom=Side(style='thin')
+    )
+
+    for cell in ws[1]:
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal="center", wrap_text=True)
+        cell.border = thin
+
+    for col in ws.columns:
+        max_length = 0
+        column = col[0].column_letter
+        for cell in col:
+            try:
+                if len(str(cell.value)) > max_length:
+                    max_length = len(str(cell.value))
+            except:
+                pass
+            cell.border = thin
+        adjusted_width = min(max_length + 2, 45)
+        ws.column_dimensions[column].width = adjusted_width
+
+
+@app.route("/quotes/export", methods=["GET"])
+def export_quotes():
+    query = apply_quote_filters(Quote.query)
+    quotes = query.order_by(Quote.id.desc()).all()
+
+    rows = []
+    for q in quotes:
+        total = sum(float(item.total_price or 0) for item in q.line_items)
+        # contact_str = ", ".join(q.contact) if isinstance(q.contact, list) else str(q.contact or "")
+        contact_str = format_contact(q.contact)
+
+        rows.append({
+            "Quote #": q.quote_number,
+            "Quote Date": q.date.strftime("%m/%d/%Y") if q.date else "",
+            "Bid Due Date": q.bid_date or "",
+            "Status": q.status or "",
+            "Job / Project": q.project or "",
+            "Customer": q.to_company or "",
+            "Attn": q.attention or "",
+            "Outside Sales": contact_str,
+            "Location": q.location or "",
+            "Total": round(total, 2),
+            "Created By": q.created_by or "",
+            "Notes": q.notes or "",
+        })
+
+        
+
+    df = pd.DataFrame(rows)
+
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, sheet_name="Quotes")
+        ws = writer.sheets["Quotes"]
+        style_excel_worksheet(ws)
+
+    output.seek(0)
+    return send_file(
+        output,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name=f"quotes_export_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
+    )
+
+
+@app.route("/quotes/export-line-items", methods=["GET"])
+def export_line_items():
+    query = apply_quote_filters(Quote.query)
+    quotes = query.order_by(Quote.id.desc()).all()
+
+    rows = []
+    for q in quotes:
+        # contact_str = ", ".join(q.contact) if isinstance(q.contact, list) else str(q.contact or "")
+        contact_str = format_contact(q.contact)
+
+        for item in q.line_items:
+            rows.append({
+                "Quote #": q.quote_number,
+                "Quote Date": q.date.strftime("%m/%d/%Y") if q.date else "",
+                "Status": q.status or "",
+                "Customer": q.to_company or "",
+                "Job / Project": q.project or "",
+                "Outside Sales": contact_str,
+                "Tag": item.tag or "",
+                "Qty": item.qty or 0,
+                "Description": item.description or "",
+                "Item / Category": item.item or "",
+                "Type": item.type or "",
+                "Series": item.series or "",
+                "Model": item.model or "",
+                "Part Number": item.part_number or "",
+                "Vendor": item.vendor or "",
+                "List Price": float(item.list_price or 0),
+                "Multiplier": float(item.multiplier or 1),
+                "Markup": float(item.markup or 0),
+                "Freight": float(item.freight or 0),
+                "Startup": float(item.startup or 0),
+                "Surcharge": float(item.surcharge or 0),
+                "Net Cost": float(item.net_cost or 0),
+                "Sell Price": float(item.sell_price or 0),
+                "Total Price": float(item.total_price or 0),
+                "Terms": item.terms or "",
+                "Included": "Yes" if item.included else "No",
+            })
+
+    df = pd.DataFrame(rows)
+
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, sheet_name="Line Items")
+        ws = writer.sheets["Line Items"]
+        style_excel_worksheet(ws)
+
+    output.seek(0)
+    return send_file(
+        output,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name=f"line_items_export_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
+    )
 
 
 if __name__ == "__main__":

@@ -202,6 +202,7 @@ function AppContent() {
   const [dashStatus, setDashStatus] = useState("");
   const [dashSort, setDashSort] = useState("id");
   const [dashDirection, setDashDirection] = useState("desc");
+  const [dashSalesman, setDashSalesman] = useState("");
 
   const [productSearch, setProductSearch] = useState("");
   const [noteSearch, setNoteSearch] = useState("");
@@ -357,6 +358,7 @@ async function fetchDashboard() {
       status: dashStatus,
       customer: dashCustomer,
       location: dashLocation,
+      salesman: dashSalesman,
       quote_date_from: dashQuoteDateFrom,
       quote_date_to: dashQuoteDateTo,
       bid_date_from: dashBidDateFrom,
@@ -375,6 +377,7 @@ async function clearDashboardFilters() {
   setDashStatus("");
   setDashCustomer("");
   setDashLocation("");
+  setDashSalesman("");
   setDashQuoteDateFrom("");
   setDashQuoteDateTo("");
   setDashBidDateFrom("");
@@ -389,6 +392,7 @@ async function clearDashboardFilters() {
     status: "",
     customer: "",
     location: "",
+    salesman: "",
     quote_date_from: "",
     quote_date_to: "",
     bid_date_from: "",
@@ -1815,6 +1819,46 @@ const totalDashPages = Math.ceil(quotes.length / dashPageSize) || 1;
     return created >= thisWeekStart;
   });
 
+  async function downloadExport(type) {
+  // type = "quotes" or "line-items"
+  const params = new URLSearchParams({
+    search: dashSearch || "",
+    line_search: dashLineSearch || "",
+    status: dashStatus || "",
+    customer: dashCustomer || "",
+    location: dashLocation || "",
+    salesman: dashSalesman || "",
+    quote_date_from: dashQuoteDateFrom || "",
+    quote_date_to: dashQuoteDateTo || "",
+    bid_date_from: dashBidDateFrom || "",
+    bid_date_to: dashBidDateTo || "",
+  });
+
+  try {
+    const res = await axios.get(`${API}/quotes/export${type === "line-items" ? "-line-items" : ""}`, {
+      params,
+      responseType: "blob",
+    });
+
+    const url = window.URL.createObjectURL(new Blob([res.data]));
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute(
+      "download",
+      type === "line-items"
+        ? `line_items_export.xlsx`
+        : `quotes_export.xlsx`
+    );
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  } catch (err) {
+    console.error(err);
+    alert("Failed to download export. Please try again.");
+  }
+}
+
     return (
       <section className="screen">
 
@@ -1882,6 +1926,21 @@ const totalDashPages = Math.ceil(quotes.length / dashPageSize) || 1;
     <option>Won</option>
     <option>Lost</option>
   </select>
+
+  <select
+  value={dashSalesman}
+  onChange={(e) => setDashSalesman(e.target.value)}
+>
+  <option value="">All Outside Sales</option>
+  <option value="Mike Llorence">Mike Llorence</option>
+  <option value="Phil Haas">Phil Haas</option>
+  <option value="Luke Hanzlik">Luke Hanzlik</option>
+  <option value="Alex White">Alex White</option>
+  <option value="Mark Labitad">Mark Labitad</option>
+  <option value="Rhiannon Canas">Rhiannon Canas</option>
+  <option value="Megan McCabe">Megan McCabe</option>
+  <option value="Hazel Caling">Hazel Caling</option>
+</select>
 
   <input
     placeholder="Customer"
@@ -1963,6 +2022,23 @@ const totalDashPages = Math.ceil(quotes.length / dashPageSize) || 1;
     >
       Clear
     </button>
+ <div className="button-row">
+     <button
+  className="btn download"
+  type="button"
+  onClick={() => downloadExport("quotes")}
+>
+  Download Quotes
+</button>
+
+<button
+  className="btn download"
+  type="button"
+  onClick={() => downloadExport("line-items")}
+>
+  Download Line Items
+</button>
+ </div>
   </div>
 </div>
 {dashboardMessage && (
@@ -1974,13 +2050,14 @@ const totalDashPages = Math.ceil(quotes.length / dashPageSize) || 1;
           <table className="data-table">
             <thead>
               <tr>
+                <th>Outside Sales</th>
                 <th>Quote #</th>
                 <th>Bid Due Date</th>
                 <th>Created On</th>
                 <th>Status</th>
                 <th>Job</th>
                 <th>Customer</th>
-                <th>Attn</th>
+                
                 <th>Total</th>
                 <th>Location</th>
                 <th>Actions</th>
@@ -1989,13 +2066,14 @@ const totalDashPages = Math.ceil(quotes.length / dashPageSize) || 1;
             <tbody>
               {pagedQuotes.map((q) => (
                 <tr key={q.id}>
+                  <td>{formatContact(q.contact)}</td>
                   <td>{q.quote_number}</td>
                   <td>{q.bid_date}</td>
                   <td>{q.created_at || q.date}</td>
                   <td><span className="pill">{q.status}</span></td>
                   <td>{q.project}</td>
                   <td>{q.to_company}</td>
-                  <td>{q.attention}</td>
+                  
                   <td>{money(q.total)}</td>
                   <td>{q.location}</td>
                   <td>

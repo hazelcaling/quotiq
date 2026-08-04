@@ -598,6 +598,11 @@ button:disabled {
   border-radius: 8px;
 }
 
+.btn.download {
+  background: pink;
+  color: black;
+}
+
 @media (max-width: 1200px) {
   .line-grid {
     grid-template-columns: repeat(3, 1fr);
