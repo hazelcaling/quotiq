@@ -53,6 +53,8 @@ class Quote(db.Model):
 
     status = db.Column(db.String(30), default="Not Started")
 
+    freight_terms = db.Column(db.String(100), default="FOB")
+
     notes = db.Column(db.Text)
 
     created_at = db.Column(

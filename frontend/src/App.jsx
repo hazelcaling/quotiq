@@ -30,6 +30,8 @@ const emptyQuote = {
   status: "Not Started",
   notes: "",
   showNoSpec: true,
+  freight_terms: "FOB",
+  freight_note: "",
 };
 
 const emptyLineItem = {
@@ -748,10 +750,18 @@ async function saveQuote(e) {
   setQuoteBusy(true);
   setQuoteMessage(editingQuoteId ? "Updating quote..." : "Saving new quote...");
 
+    const freightTermsValue =
+    quoteForm.freight_terms === "CUSTOM" ||
+    (quoteForm.freight_terms !== "FOB" && quoteForm.freight_terms !== "FFA")
+      ? String(quoteForm.freight_note || "").trim()
+      : quoteForm.freight_terms || "FOB";
+
   const payload = {
     ...quoteForm,
     bid_date: quoteForm.bid_date || "N/A",
+    freight_terms: freightTermsValue,
   };
+
 
   try {
     if (editingQuoteId) {
@@ -830,6 +840,14 @@ async function editQuote(q) {
       to_company: lockedQuote.to_company || "",
       attention: lockedQuote.attention || "",
       location: lockedQuote.location || "",
+      freight_terms:
+        lockedQuote.freight_terms === "FOB" || lockedQuote.freight_terms === "FFA"
+          ? lockedQuote.freight_terms
+          : "CUSTOM",
+      freight_note:
+        lockedQuote.freight_terms === "FOB" || lockedQuote.freight_terms === "FFA"
+          ? ""
+          : lockedQuote.freight_terms || "",
       status: lockedQuote.status || "Not Started",
       notes: lockedQuote.notes || "",
       date: lockedQuote.date || "",
@@ -1406,12 +1424,15 @@ if (loading) {
 
     const pdfQuoteTotal = quoteTotal(quote);
 
-    const uniqueTerms = [
-      ...new Set((quote.line_items || []).map((item) => item.terms).filter(Boolean)),
-    ];
+    const terms = String(quote.freight_terms || "FOB").trim();
 
     const termsText =
-      uniqueTerms.length === 1 ? `${uniqueTerms[0]} ORIGIN` : "TERMS VARY BY LINE ITEM";
+      terms === "FOB"
+        ? "FOB ORIGIN"
+        : terms === "FFA"
+          ? "FFA ORIGIN"
+          : terms;
+
 
     // PAGE 1
 pageHeader();
@@ -1707,7 +1728,10 @@ doc.setFont("helvetica", "bold");
 doc.setFontSize(8);
 
 const priceNote1 = "PRICING DOES NOT INCLUDE SALES TAX";
-const priceNote2 = `ALL EQUIPMENT HAS BEEN PRICED: ${termsText}`;
+const priceNote2 =
+  terms === "FOB" || terms === "FFA"
+    ? `ALL EQUIPMENT HAS BEEN PRICED: ${termsText}`
+    : termsText;
 
 const drawHighlightedText = (text, yPos) => {
   const textWidth = doc.getTextWidth(text);
@@ -2407,6 +2431,32 @@ const current = contactToArray(quoteForm.contact);
           </select>
         </label>
 
+        <label>
+          Freight Terms
+          <select
+            name="freight_terms"
+            value={quoteForm.freight_terms || "FOB"}
+            onChange={updateForm(setQuoteForm)}
+          >
+            <option value="FOB">FOB</option>
+            <option value="FFA">FFA</option>
+            <option value="CUSTOM">Custom</option>
+          </select>
+        </label>
+
+        {quoteForm.freight_terms === "CUSTOM" && (
+          <label style={{ gridColumn: "1 / -1" }}>
+            Custom Freight Message
+            <textarea
+              name="freight_note"
+              rows={2}
+              placeholder="Type the freight message to print on the quote"
+              value={quoteForm.freight_note || ""}
+              onChange={updateForm(setQuoteForm)}
+            />
+          </label>
+        )}
+
         <label style={{ gridColumn: "1 / -1" }}>
           Notes
           <textarea
@@ -2504,6 +2554,9 @@ const current = contactToArray(quoteForm.contact);
 
   <p>
     <b>Total:</b> {money(activeQuote.total)}
+  </p>
+    <p>
+    <b>Freight Terms:</b> {activeQuote.freight_terms || "-"}
   </p>
     <p>
     <b>Notes:</b> {activeQuote.notes || "-"}

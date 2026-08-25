@@ -147,6 +147,7 @@ def quote_to_dict(q):
         "location": q.location,
         "notes": q.notes,
         "status": q.status,
+        "freight_terms": q.freight_terms or "FOB",
         "created_at": q.created_at.strftime("%m/%d/%Y") if q.created_at else "",
         "updated_at": q.updated_at.strftime("%m/%d/%Y") if q.updated_at else "",
         "line_items": [line_item_to_dict(item) for item in sorted_line_items],
@@ -378,6 +379,7 @@ def create_quote():
         to_company=data.get("to_company"),
         attention=data.get("attention"),
         location=data.get("location"),
+        freight_terms=data.get("freight_terms", "FOB"),
         status=data.get("status", "Not Started"),
         notes=data.get("notes"),
         created_by=session.get("user_name"),
@@ -402,6 +404,7 @@ def update_quote(id):
     quote.to_company = data.get("to_company", quote.to_company)
     quote.attention = data.get("attention", quote.attention)
     quote.location = data.get("location", quote.location)
+    quote.freight_terms = data.get("freight_terms", quote.freight_terms or "FOB")
     quote.status = data.get("status", quote.status)
     quote.notes = data.get("notes", quote.notes)
 
