@@ -5,7 +5,7 @@ import axios from "axios";
 import { BrowserRouter, Routes, Route, NavLink, useNavigate, useLocation } from "react-router-dom";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { PDFDocument } from "pdf-lib";
+import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
 import "./App.css";
 import hteLogo from "./assets/hte-logo.jpg";
 import hteAddress from "./assets/hte-address.png";
@@ -1397,401 +1397,508 @@ if (loading) {
 }
 
 
-  const printQuotePdf = async (quote, mode = "preview") => {
-    const doc = new jsPDF("p", "pt", "letter");
+const printQuotePdf = async (quote, mode = "preview") => {
+  const doc = new jsPDF("p", "pt", "letter");
 
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
 
-    const marginLeft = 36;
-    const marginRight = 36;
-    const contentWidth = pageWidth - marginLeft - marginRight;
-    const totalPages = 3;
+  const marginLeft = 36;
+  const marginRight = 36;
+  const contentWidth = pageWidth - marginLeft - marginRight;
 
-    const pageHeader = () => {
-  doc.addImage(hteLogo, "JPEG", marginLeft, 20, 150, 55); // bigger logo
-  // doc.addImage(hteAddress, "PNG", pageWidth - marginRight - 230, 20, 230, 55); // bigger address
-  doc.addImage(hteAddress, "PNG", pageWidth - marginRight - 230, 38, 230, 55); // lower
-};
+  // Strong bottom safety zone – content must never enter this area
+  const bottomSafe = 52;
 
-    const pageFooter = (pageNum) => {
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(8);
-      doc.text(`Page ${pageNum} of ${totalPages}`, pageWidth - marginRight, pageHeight - 20, {
-        align: "right",
-      });
-    };
+  // ========== HEADER (Logo + Address) ==========
+  const pageHeader = () => {
+    doc.addImage(hteLogo, "JPEG", marginLeft, 20, 150, 55);
+    doc.addImage(hteAddress, "PNG", pageWidth - marginRight - 230, 38, 230, 55);
+  };
 
-    const pdfQuoteTotal = quoteTotal(quote);
+  // ========== COLUMN HEADER ==========
+  const drawColumnHeader = (startY) => {
+    doc.setFillColor(230, 230, 230);
+    doc.rect(
+      marginLeft - 10,
+      startY,
+      pageWidth - marginRight + 10 - (marginLeft - 10),
+      14,
+      "F"
+    );
 
-    const terms = String(quote.freight_terms || "FOB").trim();
-
-    const termsText =
-      terms === "FOB"
-        ? "FOB ORIGIN"
-        : terms === "FFA"
-          ? "FFA ORIGIN"
-          : terms;
-
-
-    // PAGE 1
-pageHeader();
-
-const titleY = 110;
-const topLineY = titleY - 18;
-const bottomLineY = titleY + 8;
-
-doc.setDrawColor(20, 80, 60); // darker green
-doc.setLineWidth(2);          // thicker line
-
-
-const tableLeft = marginLeft;
-const tableRight = pageWidth - marginRight;
-
-doc.line(tableLeft, topLineY, tableRight, topLineY);
-
-doc.setFont("helvetica", "bold");
-doc.setFontSize(16);
-doc.text("QUOTATION", pageWidth / 2, titleY, { align: "center" });
-
-doc.line(tableLeft, bottomLineY, tableRight, bottomLineY);
-
-let y = bottomLineY + 25;
-
-autoTable(doc, {
-  startY: y,
-  margin: { left: marginLeft + 5, right: marginRight + 5 },
-  theme: "grid",
-  body: [
-    [
-  "DATE:",
-  quote.date
-    ? new Date(`${quote.date}T00:00:00`).toLocaleDateString("en-US")
-    : "",
-  "BID DATE:",
-  quote.bid_date || "",
-],
-    ["QUOTE #:", quote.quote_number || "", "TO:", quote.to_company || ""],
-    ["CONTACT:", formatContact(quote.contact), "ATTENTION:", quote.attention || ""],
-    ["PROJECT:", quote.project || "", "LOCATION:", quote.location || ""],
-  ],
-  styles: {
-    font: "helvetica",
-    fontSize: 9,
-    cellPadding: 4,
-    lineColor: [0, 0, 0],
-    lineWidth: 0.6,
-    textColor: [0, 0, 0],
-    valign: "middle",
-  },
-columnStyles: {
-  0: { cellWidth: 80, fontStyle: "bold", fillColor: [235, 235, 235] },
-  1: { cellWidth: 180, },
-  2: { cellWidth: 90, fontStyle: "bold", fillColor: [235, 235, 235] },
-  3: { cellWidth: 180 },
-},
-});
-
-y = doc.lastAutoTable.finalY + 20;
-
-    doc.setFont("helvetica", "normal");
-doc.setFontSize(7.2);
-
-const paragraphGap = 7;
-const lineHeight = 8.3;
-
-const addParagraph = (text, options = {}) => {
-  doc.setFont(
-    "helvetica",
-    options.style || "normal"
-  );
-
-  if (options.color) {
-    doc.setTextColor(...options.color);
-  } else {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
     doc.setTextColor(0, 0, 0);
-  }
 
-  const lines = doc.splitTextToSize(text, contentWidth);
-  doc.text(lines, marginLeft, y);
-  y += lines.length * lineHeight + paragraphGap;
+    const tableTop = startY + 11;
 
-  doc.setTextColor(0, 0, 0);
-};
+    const colX = [
+      marginLeft - 5,
+      marginLeft + 98,
+      marginLeft + 130,
+      pageWidth - marginRight - 92,
+      pageWidth - marginRight - 20,
+    ];
 
-// normal intro
-addParagraph(
-  "We are pleased to propose the following equipment for your consideration and subject to the engineer’s approval. Our proposal is limited only to that portion of the specifications concerning the equipment we have proposed per the sections and related paragraphs cited in our proposal. On all Heat Transfer Equipment Company’s quotations, where project plans and/or specifications have not been provided, we reserve the right to re-quote once the missing plans are provided to us."
-);
+    doc.text("TAG", colX[0] + 8, tableTop);
+    doc.text("QTY", colX[1], tableTop, { align: "center" });
+    doc.text("DESCRIPTION", colX[2] + 130, tableTop, { align: "center" });
+    doc.text("NET EACH", colX[3], tableTop, { align: "center" });
+    doc.text("EXT. TOTAL", colX[4], tableTop, { align: "center" });
 
-// BOLD pricing paragraph
-addParagraph(
-  "Pricing is based upon the purchase of ALL equipment, per each manufacturer, on this quotation. If all equipment will not be ordered in full, price is subject to change. It is to not be assumed that any equipment or components, not explicitly written into this quote, even if they are within our scope, are included in the pricing of this quotation. Please discuss with your sales associate if any item is in question.",
-  { style: "bold" }
-);
+    // Extra space after the column header before content starts
+    return startY + 34;
+  };
 
-// BOLD terms paragraph
-addParagraph(
-  "This quotation is in accordance with the Terms & Conditions listed at the end of this document – H.T.E. does not agree to accept other Terms & Conditions unless noted within this quotation.",
-  { style: "bold" }
-);
+  const addNewPage = () => {
+    doc.addPage();
+    pageHeader();
+    return drawColumnHeader(95);
+  };
 
-   // RED BOLD ITALIC tariff
-addParagraph("Tariff Disclaimer:", {
-  style: "bolditalic",
-  color: [200, 0, 0],
-});
+  // ========== PAGE 1 ==========
+  pageHeader();
 
-addParagraph(
-  "At Heat Transfer Equipment, we strive to provide accurate and competitive pricing based on the tariff rates, duties, government-imposed charges, and trade regulations in effect at the time this quote is issued. However, we recognize that global trade conditions and regulatory decisions can change unexpectedly and are outside of any of our control.",
-  { style: "bolditalic", color: [200, 0, 0] }
-);
+  const titleY = 110;
+  const topLineY = titleY - 18;
+  const bottomLineY = titleY + 8;
 
-addParagraph(
-  "If new tariffs, duties, taxes, or similar charges are introduced, or if existing ones are modified by any government or regulatory authority (“Tariff Changes”), and these changes result in an increase to the cost of goods, we reserve the right to adjust the pricing of the affected items to reflect those changes.",
-  { style: "bolditalic", color: [200, 0, 0] }
-);
+  doc.setDrawColor(20, 80, 60);
+  doc.setLineWidth(2);
 
-addParagraph(
-  "Any tariff-related cost increases that take effect after the quote date will be communicated to you in advance of issuing the final invoice. We will always do our best to provide transparency and timely updates to help you make informed purchasing decisions.",
-  { style: "bolditalic", color: [200, 0, 0] }
-);
+  const tableLeft = marginLeft;
+  const tableRight = pageWidth - marginRight;
 
-addParagraph(
-  "If you have any questions or would like to better understand how potential tariff changes may impact your order, please don’t hesitate to contact your Heat Transfer Equipment sales representative. We truly appreciate your business and your understanding as we navigate these evolving conditions together.",
-  { style: "bolditalic", color: [200, 0, 0] }
-);
+  doc.line(tableLeft, topLineY, tableRight, topLineY);
 
-// green line after tariff
-y += 3;
-doc.setDrawColor(20, 80, 60);
-doc.setLineWidth(2);
-doc.line(marginLeft - 10, y, pageWidth - marginRight + 10, y);
-y += 10;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(16);
+  doc.text("QUOTATION", pageWidth / 2, titleY, { align: "center" });
 
-doc.setTextColor(0, 0, 0);
+  doc.line(tableLeft, bottomLineY, tableRight, bottomLineY);
 
-doc.setFont("helvetica", "bold");
-doc.setFontSize(9);
-if (quote.showNoSpec !== false) {
-  doc.text(
-    "NO SPECIFICATIONS PROVIDED",
-    pageWidth / 2,
-    y,
-    { align: "center" }
-  );
-  y += 12;
-}
+  let y = bottomLineY + 25;
 
+  autoTable(doc, {
+    startY: y,
+    margin: { left: marginLeft + 5, right: marginRight + 5 },
+    theme: "grid",
+    body: [
+      [
+        "DATE:",
+        quote.date
+          ? new Date(`${quote.date}T00:00:00`).toLocaleDateString("en-US")
+          : "",
+        "BID DATE:",
+        quote.bid_date || "",
+      ],
+      ["QUOTE #:", quote.quote_number || "", "TO:", quote.to_company || ""],
+      ["CONTACT:", formatContact(quote.contact), "ATTENTION:", quote.attention || ""],
+      ["PROJECT:", quote.project || "", "LOCATION:", quote.location || ""],
+    ],
+    styles: {
+      font: "helvetica",
+      fontSize: 9,
+      cellPadding: 4,
+      lineColor: [0, 0, 0],
+      lineWidth: 0.6,
+      textColor: [0, 0, 0],
+      valign: "middle",
+    },
+    columnStyles: {
+      0: { cellWidth: 80, fontStyle: "bold", fillColor: [235, 235, 235] },
+      1: { cellWidth: 180 },
+      2: { cellWidth: 90, fontStyle: "bold", fillColor: [235, 235, 235] },
+      3: { cellWidth: 180 },
+    },
+  });
 
-// ==================== MANUAL TABLE ====================
+  y = doc.lastAutoTable.finalY + 20;
 
-y += 12;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(7.2);
 
-// Header
-doc.setFillColor(230, 230, 230);
-doc.rect(marginLeft - 10, y, pageWidth - marginRight + 10 - (marginLeft - 10), 14, "F");
+  const paragraphGap = 7;
+  const lineHeight = 8.3;
 
-doc.setFont("helvetica", "bold");
-doc.setFontSize(9);
-doc.setTextColor(0, 0, 0);
+  const addParagraph = (text, options = {}) => {
+    doc.setFont("helvetica", options.style || "normal");
 
-const tableTop = y + 11;
-
-
-const colX = [
-  marginLeft - 5,             // TAG          ← Increased width
-  marginLeft + 98,            // QTY
-  marginLeft + 130,           // DESCRIPTION
-  pageWidth - marginRight - 92,  // NET EACH     ← Reduced
-  pageWidth - marginRight - 20   // EXT. TOTAL   ← Reduced
-];
-
-doc.text("TAG", colX[0] + 8, tableTop);
-doc.text("QTY", colX[1], tableTop, { align: "center" });
-doc.text("DESCRIPTION", colX[2] + 130, tableTop, { align: "center" });
-doc.text("NET EACH", colX[3], tableTop, { align: "center" });
-doc.text("EXT. TOTAL", colX[4], tableTop, { align: "center" });
-
-// Header line
-y += 15;
-
-y += 10;
-
-doc.setFontSize(8.5);
-const tableLineHeight = 9.8;
-const descMaxWidth = 300;   // Description width DATI AY 300 WORKING
-
-// ==================== TABLE BODY ====================
-(quote.line_items || []).forEach((item) => {
-  const qty = Number(item.qty) > 0 ? item.qty.toString() : "";
-  const netPrice = item.included ? "Included" : formatMoney(item.sell_price);
-  const extPrice = item.included ? "Included" : formatMoney(item.total_price);
-
-  let fullDesc = (item.description || "").replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
-  const rawLines = fullDesc.split("\n");
-  let startY = y;
-  let currentY = startY;
-
-  rawLines.forEach((line) => {
-    const trimmed = line.trim();
-    if (!trimmed) {
-      currentY += tableLineHeight;
-      return;
+    if (options.color) {
+      doc.setTextColor(...options.color);
+    } else {
+      doc.setTextColor(0, 0, 0);
     }
 
-    if (trimmed.startsWith("•") || trimmed.startsWith("-")) {
-      // Bullet = Italic
-      doc.setFont("helvetica", "italic");
-      const bulletText = "• " + trimmed.replace(/^[•-]\s*/, "").trim();
-      const wrapped = doc.splitTextToSize(bulletText, descMaxWidth - 30);
+    const lines = doc.splitTextToSize(text, contentWidth);
+    doc.text(lines, marginLeft, y);
+    y += lines.length * lineHeight + paragraphGap;
 
-      const bulletIndent = colX[2] + 12;
-      const wrapIndent   = colX[2] + 17;   // your preferred
+    doc.setTextColor(0, 0, 0);
+  };
 
-      wrapped.forEach((wrappedLine, i) => {
-        if (i === 0) {
-          doc.text(wrappedLine, bulletIndent, currentY);
-        } else {
-          doc.text(wrappedLine, wrapIndent, currentY);
-        }
-        currentY += tableLineHeight;
-      });
-    } 
-    else {
-      // === BOLD FIRST SENTENCE WITH PROPER WRAPPING ===
-      doc.setFont("helvetica", "bold");
-      
-      let splitIndex = trimmed.search(/[.,]/);
-      if (splitIndex === -1) splitIndex = trimmed.length;
+  // Intro paragraphs (kept exactly as original)
+  addParagraph(
+    "We are pleased to propose the following equipment for your consideration and subject to the engineer’s approval. Our proposal is limited only to that portion of the specifications concerning the equipment we have proposed per the sections and related paragraphs cited in our proposal. On all Heat Transfer Equipment Company’s quotations, where project plans and/or specifications have not been provided, we reserve the right to re-quote once the missing plans are provided to us."
+  );
 
-      const boldPart = trimmed.substring(0, splitIndex + 1).trim();
-      const restPart = trimmed.substring(splitIndex + 1).trim();
+  addParagraph(
+    "Pricing is based upon the purchase of ALL equipment, per each manufacturer, on this quotation. If all equipment will not be ordered in full, price is subject to change. It is to not be assumed that any equipment or components, not explicitly written into this quote, even if they are within our scope, are included in the pricing of this quotation. Please discuss with your sales associate if any item is in question.",
+    { style: "bold" }
+  );
 
-      // Bold part - wrap if long
-      const boldWrapped = doc.splitTextToSize(boldPart, descMaxWidth - 30);
-      boldWrapped.forEach((line) => {
+  addParagraph(
+    "This quotation is in accordance with the Terms & Conditions listed at the end of this document – H.T.E. does not agree to accept other Terms & Conditions unless noted within this quotation.",
+    { style: "bold" }
+  );
+
+  addParagraph("Tariff Disclaimer:", {
+    style: "bolditalic",
+    color: [200, 0, 0],
+  });
+
+  addParagraph(
+    "At Heat Transfer Equipment, we strive to provide accurate and competitive pricing based on the tariff rates, duties, government-imposed charges, and trade regulations in effect at the time this quote is issued. However, we recognize that global trade conditions and regulatory decisions can change unexpectedly and are outside of any of our control.",
+    { style: "bolditalic", color: [200, 0, 0] }
+  );
+
+  addParagraph(
+    "If new tariffs, duties, taxes, or similar charges are introduced, or if existing ones are modified by any government or regulatory authority (“Tariff Changes”), and these changes result in an increase to the cost of goods, we reserve the right to adjust the pricing of the affected items to reflect those changes.",
+    { style: "bolditalic", color: [200, 0, 0] }
+  );
+
+  addParagraph(
+    "Any tariff-related cost increases that take effect after the quote date will be communicated to you in advance of issuing the final invoice. We will always do our best to provide transparency and timely updates to help you make informed purchasing decisions.",
+    { style: "bolditalic", color: [200, 0, 0] }
+  );
+
+  addParagraph(
+    "If you have any questions or would like to better understand how potential tariff changes may impact your order, please don’t hesitate to contact your Heat Transfer Equipment sales representative. We truly appreciate your business and your understanding as we navigate these evolving conditions together.",
+    { style: "bolditalic", color: [200, 0, 0] }
+  );
+
+  // green line after tariff
+  y += 3;
+  doc.setDrawColor(20, 80, 60);
+  doc.setLineWidth(2);
+  doc.line(marginLeft - 10, y, pageWidth - marginRight + 10, y);
+  y += 16;
+
+  doc.setTextColor(0, 0, 0);
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9);
+  if (quote.showNoSpec !== false) {
+    doc.text("NO SPECIFICATIONS PROVIDED", pageWidth / 2, y, {
+      align: "center",
+    });
+    y += 10;
+  }
+
+  // ==================== MANUAL TABLE ====================
+  y += 1;
+
+  // First page column header
+  y = drawColumnHeader(y);
+
+  doc.setFontSize(8.5);
+  const tableLineHeight = 9.8;
+  const descMaxWidth = 300;
+
+  const colX = [
+    marginLeft - 5,
+    marginLeft + 98,
+    marginLeft + 130,
+    pageWidth - marginRight - 92,
+    pageWidth - marginRight - 20,
+  ];
+
+  // ==================== TABLE BODY ====================
+  (quote.line_items || []).forEach((item) => {
+    // Pre-check: if we are already too close to the bottom, start a new page first
+    if (y > pageHeight - bottomSafe - 25) {
+      y = addNewPage();
+    }
+
+    const qty = Number(item.qty) > 0 ? item.qty.toString() : "";
+    const netPrice = item.included ? "Included" : formatMoney(item.sell_price);
+    const extPrice = item.included ? "Included" : formatMoney(item.total_price);
+
+    let fullDesc = (item.description || "")
+      .replace(/\r\n/g, "\n")
+      .replace(/\r/g, "\n")
+      .trim();
+    const rawLines = fullDesc.split("\n");
+    let startY = y;
+    let currentY = startY;
+
+rawLines.forEach((line) => {
+  const trimmed = line.trim();
+  if (!trimmed) {
+    currentY += tableLineHeight;
+    return;
+  }
+
+  // ===== SECTION HEADER ( !!Text!! ) =====
+  const sectionMatch = trimmed.match(/^!!(.+)!!$/);
+  if (sectionMatch) {
+    const headerText = sectionMatch[1].trim();
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(37, 99, 235);
+
+    const headerX = colX[2] + 150;
+    doc.text(headerText, headerX, currentY, { align: "center" });
+
+    currentY += tableLineHeight + 4;
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(8.5);
+    return;
+  }
+
+  // ===== Bullet lines =====
+  if (trimmed.startsWith("•") || trimmed.startsWith("-")) {
+    doc.setFont("helvetica", "italic");
+
+    let bulletContent = trimmed.replace(/^[•-]\s*/, "").trim();
+
+    // -##this is red##  → red bullet
+    const isRedBullet = bulletContent.includes("##");
+    if (isRedBullet) {
+      bulletContent = bulletContent.replace(/##/g, "").trim();
+      doc.setTextColor(200, 0, 0);
+    } else {
+      doc.setTextColor(0, 0, 0);
+    }
+
+    const bulletText = "• " + bulletContent;
+    const wrapped = doc.splitTextToSize(bulletText, descMaxWidth - 30);
+
+    const bulletIndent = colX[2] + 12;
+    const wrapIndent = colX[2] + 17;
+
+    wrapped.forEach((wrappedLine, i) => {
+      if (i === 0) {
+        doc.text(wrappedLine, bulletIndent, currentY);
+      } else {
+        doc.text(wrappedLine, wrapIndent, currentY);
+      }
+      currentY += tableLineHeight;
+    });
+
+    doc.setTextColor(0, 0, 0);
+  }
+  // ===== Normal description lines =====
+  else {
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(0, 0, 0);
+
+    let splitIndex = trimmed.search(/[.,]/);
+    if (splitIndex === -1) splitIndex = trimmed.length;
+
+    const boldPart = trimmed.substring(0, splitIndex + 1).trim();
+    const restPart = trimmed.substring(splitIndex + 1).trim();
+
+    const boldWrapped = doc.splitTextToSize(boldPart, descMaxWidth - 30);
+    boldWrapped.forEach((line) => {
+      doc.text(line, colX[2] + 5, currentY);
+      currentY += tableLineHeight;
+    });
+
+    if (restPart) {
+      doc.setFont("helvetica", "normal");
+      const restWrapped = doc.splitTextToSize(restPart, descMaxWidth - 30);
+      restWrapped.forEach((line) => {
         doc.text(line, colX[2] + 5, currentY);
         currentY += tableLineHeight;
       });
+    }
+  }
+});
 
-      // Rest of text
-      if (restPart) {
-        doc.setFont("helvetica", "normal");
-        const restWrapped = doc.splitTextToSize(restPart, descMaxWidth - 30);
-        restWrapped.forEach((line) => {
-          doc.text(line, colX[2] + 5, currentY);   // aligned under description
-          currentY += tableLineHeight;
-        });
+    // // TAG / QTY / Prices
+    // doc.setFont("helvetica", "bold");
+    // const tagText = item.tag || "";
+    // const wrappedTag = doc.splitTextToSize(tagText, 70);
+
+    // wrappedTag.forEach((line, i) => {
+    //   doc.text(line, colX[0] + 8, startY + 1 + i * tableLineHeight);
+    // });
+
+        doc.setFont("helvetica", "bold");
+    const tagText = item.tag || "";
+    const wrappedTag = doc.splitTextToSize(tagText, 70);
+
+    wrappedTag.forEach((line, i) => {
+      if (/VE Option|Basis of Design/i.test(line)) {
+        doc.setTextColor(50, 90, 165);
+      } else {
+        doc.setTextColor(0, 0, 0);
       }
+      doc.text(line, colX[0] + 8, startY + 1 + i * tableLineHeight);
+    });
+    doc.setTextColor(0, 0, 0);
+
+    doc.text(qty, colX[1], startY + 1, { align: "center" });
+
+    doc.setFont("helvetica", "normal");
+    doc.text(netPrice, colX[3], startY + 1, { align: "center" });
+
+    doc.setFont("helvetica", "bold");
+    doc.text(extPrice, colX[4], startY + 1, { align: "center" });
+
+    const tagHeight = wrappedTag.length * tableLineHeight;
+    const descHeight = currentY - startY;
+    y = startY + Math.max(tagHeight, descHeight) + 12;
+    y += 8;
+
+    // Final safety check after drawing the item
+    if (y > pageHeight - bottomSafe) {
+      y = addNewPage();
     }
   });
 
-  // Fixed columns (TAG, QTY, etc.)
-  doc.setFont("helvetica", "bold");
-  const tagText = item.tag || "";
-  const wrappedTag = doc.splitTextToSize(tagText, 70);
+  // ==================== PRICING NOTES + TOTAL ====================
+  if (y > pageHeight - bottomSafe - 45) {
+    y = addNewPage();
+  }
 
-  wrappedTag.forEach((line, i) => {
-    doc.text(line, colX[0] + 8, startY + 1 + (i * tableLineHeight));
+  doc.setDrawColor(0, 0, 0);
+  doc.setLineWidth(0.7);
+  doc.line(marginLeft - 10, y, pageWidth - marginRight + 10, y);
+
+  y += 18;
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8);
+
+  const terms = String(quote.freight_terms || "FOB").trim();
+  const termsText =
+    terms === "FOB"
+      ? "FOB ORIGIN"
+      : terms === "FFA"
+        ? "FFA ORIGIN"
+        : terms;
+
+  const priceNote1 = "PRICING DOES NOT INCLUDE SALES TAX";
+  const priceNote2 =
+    terms === "FOB" || terms === "FFA"
+      ? `ALL EQUIPMENT HAS BEEN PRICED: ${termsText}`
+      : termsText;
+
+  const drawHighlightedText = (text, yPos) => {
+    const textWidth = doc.getTextWidth(text);
+    const padding = 4;
+    const x = pageWidth - marginRight - textWidth;
+
+    doc.setFillColor(255, 255, 0);
+    doc.rect(x - padding, yPos - 6, textWidth + padding * 2, 11, "F");
+
+    doc.setTextColor(0, 0, 0);
+    doc.text(text, pageWidth - marginRight, yPos, { align: "right" });
+  };
+
+  drawHighlightedText(priceNote1, y);
+  y += 14;
+  drawHighlightedText(priceNote2, y);
+  y += 16;
+
+  // TOTAL
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(12);
+  doc.text(`TOTAL: ${formatMoney(quoteTotal(quote))}`, pageWidth - marginRight, y, {
+    align: "right",
   });
 
-  doc.text(qty, colX[1], startY + 1, { align: "center" });
+  // ========== MERGE WITH LAST TWO PAGES ==========
+  const quotePdfBytes = doc.output("arraybuffer");
+  const quotePdf = await PDFDocument.load(quotePdfBytes);
 
-  doc.setFont("helvetica", "normal");
-  doc.text(netPrice, colX[3], startY + 1, { align: "center" });
+  const lastPagesBytes = await fetch(lastTwoPagesPdf).then((res) =>
+    res.arrayBuffer()
+  );
+  const lastPagesPdf = await PDFDocument.load(lastPagesBytes);
 
-  doc.setFont("helvetica", "bold");
-  doc.text(extPrice, colX[4], startY + 1, { align: "center" });
+  const copiedPages = await quotePdf.copyPages(
+    lastPagesPdf,
+    lastPagesPdf.getPageIndices()
+  );
 
-  const tagHeight = wrappedTag.length * tableLineHeight;
-  const descHeight = currentY - startY;
-  y = startY + Math.max(tagHeight, descHeight) + 12;
+  copiedPages.forEach((page) => {
+    quotePdf.addPage(page);
+  });
 
-  y += 8;
+// ========== PAGE NUMBERS (bottom right, bold current page) ==========
+const totalPages = quotePdf.getPageCount();
+const pages = quotePdf.getPages();
+const font = await quotePdf.embedFont(StandardFonts.Helvetica);
+const fontBold = await quotePdf.embedFont(StandardFonts.HelveticaBold);
 
-  if (y > doc.internal.pageSize.height - 60) {
-    doc.addPage();
-    y = 40;
-  }
+pages.forEach((page, index) => {
+  const { width } = page.getSize();
+  const pageNum = index + 1;
+  const textY = 26;
+  const size = 10;
+
+  const prefix = "Page ";
+  const number = String(pageNum);
+  const suffix = ` of ${totalPages}`;
+
+  const prefixWidth = font.widthOfTextAtSize(prefix, size);
+  const numberWidth = fontBold.widthOfTextAtSize(number, size);
+  const suffixWidth = font.widthOfTextAtSize(suffix, size);
+
+  // Start from the right edge with a small margin
+  let x = width - 25 - (prefixWidth + numberWidth + suffixWidth);
+
+  // "Page "
+  page.drawText(prefix, {
+    x,
+    y: textY,
+    size,
+    font,
+    color: rgb(0.15, 0.15, 0.15),
+  });
+  x += prefixWidth;
+
+  // Bold page number
+  page.drawText(number, {
+    x,
+    y: textY,
+    size,
+    font: fontBold,
+    color: rgb(0.15, 0.15, 0.15),
+  });
+  x += numberWidth;
+
+  // " of X"
+  page.drawText(suffix, {
+    x,
+    y: textY,
+    size,
+    font,
+    color: rgb(0.15, 0.15, 0.15),
+  });
 });
 
-// ==================== PRICING NOTES + TOTAL ====================
 
-doc.setDrawColor(0, 0, 0);
-doc.setLineWidth(0.7);
-doc.line(marginLeft - 10, y, pageWidth - marginRight + 10, y);   // separator line
 
-y += 18;
+  // ========== SAVE / PREVIEW ==========
+  const finalPdfBytes = await quotePdf.save();
+  const blob = new Blob([finalPdfBytes], { type: "application/pdf" });
+  const url = URL.createObjectURL(blob);
 
-doc.setFont("helvetica", "bold");
-doc.setFontSize(8);
-
-const priceNote1 = "PRICING DOES NOT INCLUDE SALES TAX";
-const priceNote2 =
-  terms === "FOB" || terms === "FFA"
-    ? `ALL EQUIPMENT HAS BEEN PRICED: ${termsText}`
-    : termsText;
-
-const drawHighlightedText = (text, yPos) => {
-  const textWidth = doc.getTextWidth(text);
-  const padding = 4;
-  const x = pageWidth - marginRight - textWidth;
-
-  doc.setFillColor(255, 255, 0);
-  doc.rect(x - padding, yPos - 6, textWidth + padding * 2, 11, "F");
-
-  doc.setTextColor(0, 0, 0);
-  doc.text(text, pageWidth - marginRight, yPos, { align: "right" });
+  if (mode === "download") {
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${quote.quote_number || "quote"}.pdf`;
+    a.click();
+  } else {
+    window.open(url, "_blank");
+  }
 };
-
-// Draw the notes
-drawHighlightedText(priceNote1, y);
-y += 14;
-
-drawHighlightedText(priceNote2, y);
-y += 16;
-
-// TOTAL
-doc.setFont("helvetica", "bold");
-doc.setFontSize(12);
-doc.text(`TOTAL: ${formatMoney(pdfQuoteTotal)}`, pageWidth - marginRight, y, { align: "right" });
-
-
-const quotePdfBytes = doc.output("arraybuffer");
-
-const quotePdf = await PDFDocument.load(quotePdfBytes);
-
-const lastPagesBytes = await fetch(lastTwoPagesPdf).then((res) =>
-  res.arrayBuffer()
-);
-
-const lastPagesPdf = await PDFDocument.load(lastPagesBytes);
-
-const copiedPages = await quotePdf.copyPages(
-  lastPagesPdf,
-  lastPagesPdf.getPageIndices()
-);
-
-copiedPages.forEach((page) => {
-  quotePdf.addPage(page);
-});
-
-const finalPdfBytes = await quotePdf.save();
-
-const blob = new Blob([finalPdfBytes], { type: "application/pdf" });
-const url = URL.createObjectURL(blob);
-
-if (mode === "download") {
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `${quote.quote_number || "quote"}.pdf`;
-  a.click();
-} else {
-  window.open(url, "_blank");
-}
-
-  }
 
 const previewQuotePdf = async (quote) => {
   await printQuotePdf(quote, "preview");
