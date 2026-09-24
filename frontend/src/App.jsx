@@ -2278,11 +2278,37 @@ const printQuotePdf = async (quote, mode = "preview") => {
     quotePdf.addPage(page);
   });
 
+const font = await quotePdf.embedFont(StandardFonts.Helvetica);
+const fontBold = await quotePdf.embedFont(StandardFonts.HelveticaBold);
+
+// Signature on second-to-last page (NOTICE page) from quote number initials
+{
+  const pagesNow = quotePdf.getPages();
+  if (pagesNow.length >= 2) {
+    const signPage = pagesNow[pagesNow.length - 2];
+    const qn = String(quote.quote_number || "").toUpperCase();
+    const signerName = /(?:^|[^A-Z])RC(?:[^A-Z]|$)/.test(qn) ? "Rhiannon Canas" : "Hazel Caling";
+    // Cover the printed "Hazel Caling" line, then write the matching name.
+    signPage.drawRectangle({
+      x: 34,
+      y: 285.5,
+      width: 160,
+      height: 13,
+      color: rgb(1, 1, 1),
+    });
+    signPage.drawText(signerName, {
+      x: 36,
+      y: 287.1,
+      size: 10,
+      font: fontBold,
+      color: rgb(0, 0, 0),
+    });
+  }
+}
+
 // ========== PAGE NUMBERS (bottom right, bold current page) ==========
 const totalPages = quotePdf.getPageCount();
 const pages = quotePdf.getPages();
-const font = await quotePdf.embedFont(StandardFonts.Helvetica);
-const fontBold = await quotePdf.embedFont(StandardFonts.HelveticaBold);
 
 pages.forEach((page, index) => {
   const { width } = page.getSize();
