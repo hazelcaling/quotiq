@@ -10,6 +10,7 @@ import json
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
 from openpyxl.utils import get_column_letter
 from sqlalchemy import or_
+from sqlalchemy.exc import IntegrityError
 from models import (
     db,
     User,
@@ -20,6 +21,7 @@ from models import (
     LineItemNote,
     Company,
     Contact,
+    generate_unique_quote_number,
 )
 from config import Config
 
@@ -371,7 +373,16 @@ def unlock_quote(id):
 @app.route("/quotes", methods=["POST"])
 def create_quote():
     data = request.json or {}
+    quote_number = str(data.get("quote_number") or "").strip()
+    if not quote_number:
+        return jsonify({"error": "Enter a quote number before saving."}), 400
+    existing = Quote.query.filter_by(quote_number=quote_number).first()
+    if existing:
+        return jsonify({
+            "error": f"Quote # {quote_number} already exists. Enter a different quote number."
+        }), 409
     quote = Quote(
+        quote_number=quote_number,
         date=datetime.strptime(data.get("date"),"%Y-%m-%d").date() if data.get("date") else datetime.utcnow().date(),
         bid_date=data.get("bid_date", "N/A"),
         contact=data.get("contact", []),
@@ -385,7 +396,13 @@ def create_quote():
         created_by=session.get("user_name"),
     )
     db.session.add(quote)
-    db.session.commit()
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify({
+            "error": f"Quote # {quote_number} already exists. Enter a different quote number."
+        }), 409
     return jsonify(quote_to_dict(quote)), 201
 
 
@@ -407,8 +424,27 @@ def update_quote(id):
     quote.freight_terms = data.get("freight_terms", quote.freight_terms or "FOB")
     quote.status = data.get("status", quote.status)
     quote.notes = data.get("notes", quote.notes)
+    if data.get("quote_number") is not None:
+        incoming = str(data.get("quote_number") or "").strip()
+        if not incoming:
+            return jsonify({"error": "Enter a quote number before saving."}), 400
+        taken = Quote.query.filter(
+            Quote.quote_number == incoming,
+            Quote.id != quote.id,
+        ).first()
+        if taken:
+            return jsonify({
+                "error": f"Quote # {incoming} already exists. Enter a different quote number."
+            }), 409
+        quote.quote_number = incoming
 
-    db.session.commit()
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify({
+            "error": f"Quote # {quote.quote_number} already exists. Enter a different quote number."
+        }), 409
     return jsonify(quote_to_dict(quote))
 
 

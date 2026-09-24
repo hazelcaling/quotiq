@@ -1,6 +1,6 @@
 
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
 import { BrowserRouter, Routes, Route, NavLink, useNavigate, useLocation } from "react-router-dom";
 import jsPDF from "jspdf";
@@ -21,6 +21,7 @@ axios.defaults.withCredentials = true;
 
 
 const emptyQuote = {
+  quote_number: "",
   bid_date: "N/A",
   contact: [],
   project: "",
@@ -191,6 +192,9 @@ function AppContent() {
   const [activeQuoteId, setActiveQuoteId] = useState(null);
 
   const [lineItemForm, setLineItemForm] = useState(emptyLineItem);
+  const descriptionRef = useRef(null);
+  const tagRef = useRef(null);
+
   const [editingLineItemId, setEditingLineItemId] = useState(null);
   const [draggedLineItem, setDraggedLineItem] = useState(null);
 
@@ -736,6 +740,64 @@ function selectLineProduct(p) {
     };
   }
 
+  function stripStyleMarkers(text) {
+    let s = String(text || "");
+    let prev = null;
+    while (s !== prev) {
+      prev = s;
+      s = s
+        .replace(/^\s*!!([\s\S]*?)!!\s*$/g, "$1")
+        .replace(/^\*\*([\s\S]*?)\*\*$/g, "$1")
+        .replace(/^\/\/([\s\S]*?)\/\/$/g, "$1")
+        .replace(/^\[hl\]([\s\S]*?)\[\/hl\]$/g, "$1")
+        .replace(/^\[(red|blue|green)\]([\s\S]*?)\[\/\1\]$/g, "$2");
+    }
+    return s
+      .replace(/!!/g, "")
+      .replace(/\*\*/g, "")
+      .replace(/\/\//g, "")
+      .replace(/\[hl\]|\[\/hl\]/g, "")
+      .replace(/\[\/?(red|blue|green)\]/g, "")
+      .trim();
+  }
+
+  function applyFieldStyle(field, style) {
+    const el = field === "tag" ? tagRef.current : descriptionRef.current;
+    if (!el) return;
+    const start = el.selectionStart ?? 0;
+    const end = el.selectionEnd ?? 0;
+    const value = (field === "tag" ? lineItemForm.tag : lineItemForm.description) || "";
+    if (start === end) {
+      alert("Highlight the text first, then click a style.");
+      return;
+    }
+    const inner = stripStyleMarkers(value.slice(start, end));
+    let wrapped = inner;
+    if (style === "clear") {
+      wrapped = inner;
+    } else if (style === "header") {
+      wrapped = `!!${inner}!!`;
+    } else if (style === "bold") {
+      wrapped = `**${inner}**`;
+    } else if (style === "italic") {
+      wrapped = `//${inner}//`;
+    } else if (style === "highlight") {
+      wrapped = `[hl]${inner}[/hl]`;
+    } else if (style === "red" || style === "blue" || style === "green") {
+      wrapped = `[${style}]${inner}[/${style}]`;
+    } else {
+      return;
+    }
+    const next = value.slice(0, start) + wrapped + value.slice(end);
+    setLineItemForm((prev) => ({ ...prev, [field]: next }));
+    requestAnimationFrame(() => {
+      el.focus();
+      const innerStart = start + (wrapped.length - inner.length) / 2;
+      // Put caret after the styled text so the next click does not wrap markers.
+      el.setSelectionRange(start + wrapped.length, start + wrapped.length);
+    });
+  }
+
   function handleQuoteContactInput(e) {
     const value = e.target.value;
     const arr = value.split(",").map((x) => x.trim()).filter(Boolean);
@@ -756,8 +818,17 @@ async function saveQuote(e) {
       ? String(quoteForm.freight_note || "").trim()
       : quoteForm.freight_terms || "FOB";
 
+  const quoteNumber = String(quoteForm.quote_number || "").trim();
+  if (!quoteNumber) {
+    setQuoteBusy(false);
+    setQuoteMessage("Enter a quote number before saving.");
+    setTimeout(() => setQuoteMessage(""), 5000);
+    return;
+  }
+
   const payload = {
     ...quoteForm,
+    quote_number: quoteNumber,
     bid_date: quoteForm.bid_date || "N/A",
     freight_terms: freightTermsValue,
   };
@@ -808,14 +879,25 @@ async function saveQuote(e) {
 
     setQuoteForm(emptyQuote);
     await fetchQuotes();
+    setTimeout(() => setQuoteMessage(""), 2500);
   } catch (err) {
     console.error(err);
-    setQuoteMessage(
-      err.response?.data?.error || "Unable to save quote. Please try again."
-    );
+    const status = err.response?.status;
+    const apiErr = err.response?.data?.error || err.response?.data?.message;
+    let message = "Unable to save quote. Please try again.";
+    if (status === 409 || /already exist/i.test(String(apiErr || ""))) {
+      message = apiErr || `Quote # ${quoteNumber} already exists. Enter a different quote number.`;
+    } else if (status === 400 && apiErr) {
+      message = apiErr;
+    } else if (apiErr) {
+      message = apiErr;
+    }
+    setQuoteMessage(message);
+    setQuoteBusy(false);
+    setTimeout(() => setQuoteMessage(""), 6000);
+    return;
   } finally {
     setQuoteBusy(false);
-    setTimeout(() => setQuoteMessage(""), 2500);
   }
 }
 
@@ -834,6 +916,7 @@ async function editQuote(q) {
     setActiveQuoteId(lockedQuote.id);
 
     setQuoteForm({
+      quote_number: lockedQuote.quote_number || "",
       bid_date: lockedQuote.bid_date || "N/A",
       contact: contactToArray(lockedQuote.contact),
       project: lockedQuote.project || "",
@@ -1407,8 +1490,8 @@ const printQuotePdf = async (quote, mode = "preview") => {
   const marginRight = 36;
   const contentWidth = pageWidth - marginLeft - marginRight;
 
-  // Strong bottom safety zone – content must never enter this area
-  const bottomSafe = 52;
+  // Strong bottom safety zone – stay above "Page X of Y"
+  const bottomSafe = 72;
 
   // ========== HEADER (Logo + Address) ==========
   const pageHeader = () => {
@@ -1454,7 +1537,9 @@ const printQuotePdf = async (quote, mode = "preview") => {
   const addNewPage = () => {
     doc.addPage();
     pageHeader();
-    return drawColumnHeader(95);
+    y = drawColumnHeader(95);
+    doc.setFontSize(8.5);
+    return y;
   };
 
   // ========== PAGE 1 ==========
@@ -1605,7 +1690,6 @@ const printQuotePdf = async (quote, mode = "preview") => {
   doc.setFontSize(8.5);
   const tableLineHeight = 9.8;
   const descMaxWidth = 300;
-
   const colX = [
     marginLeft - 5,
     marginLeft + 98,
@@ -1613,150 +1697,514 @@ const printQuotePdf = async (quote, mode = "preview") => {
     pageWidth - marginRight - 92,
     pageWidth - marginRight - 20,
   ];
+  const descLeft = colX[2] + 5;
+  const maxW = descMaxWidth - 30;
+  const contentBottom = () => pageHeight - bottomSafe;
+
+  const tokenizeStyled = (input) => {
+    const text = String(input || "");
+    const tokens = [];
+    let i = 0;
+    const defaults = tokenizeStyled._defaults || {};
+    const pushPlain = (chunk) => {
+      if (chunk) tokens.push({
+        text: chunk,
+        bold: !!defaults.bold,
+        italic: !!defaults.italic,
+        color: defaults.color || null,
+        highlight: false,
+      });
+    };
+    while (i < text.length) {
+      const rest = text.slice(i);
+      const rules = [
+        { open: "**", close: "**", style: { bold: true } },
+        { open: "//", close: "//", style: { italic: true } },
+        { open: "[hl]", close: "[/hl]", style: { highlight: true } },
+        { open: "[red]", close: "[/red]", style: { color: [200, 0, 0] } },
+        { open: "[blue]", close: "[/blue]", style: { color: [29, 78, 216] } },
+        { open: "[green]", close: "[/green]", style: { color: [21, 128, 61] } },
+      ];
+      let matched = false;
+      for (const rule of rules) {
+        if (rest.startsWith(rule.open)) {
+          const end = text.indexOf(rule.close, i + rule.open.length);
+          if (end !== -1) {
+            tokens.push({
+              text: text.slice(i + rule.open.length, end),
+              bold: !!rule.style.bold || !!defaults.bold,
+              italic: !!rule.style.italic || !!defaults.italic,
+              color: rule.style.color || defaults.color || null,
+              highlight: !!rule.style.highlight,
+            });
+            i = end + rule.close.length;
+            matched = true;
+            break;
+          }
+        }
+      }
+      if (matched) continue;
+      const nextIdx = Math.min(
+        ...rules.map((rule) => {
+          const n = text.indexOf(rule.open, i + 1);
+          return n === -1 ? text.length : n;
+        })
+      );
+      pushPlain(text.slice(i, nextIdx));
+      i = nextIdx;
+    }
+    return tokens.filter((tok) => tok.text);
+  };
+
+  const applySpanFont = (span) => {
+    const style = span.italic && span.bold ? "bolditalic" : span.italic ? "italic" : span.bold ? "bold" : "normal";
+    doc.setFont("helvetica", style);
+    doc.setFontSize(span.size || 8.5);
+    if (span.color) doc.setTextColor(...span.color);
+    else doc.setTextColor(0, 0, 0);
+  };
+
+  const drawStyledText = (input, startX, width, extra = {}) => {
+    tokenizeStyled._defaults = {
+      bold: !!extra.defaultBold,
+      italic: !!extra.defaultItalic,
+      color: extra.defaultColor || null,
+    };
+    const tokens = tokenizeStyled(input);
+    tokenizeStyled._defaults = {};
+    if (!tokens.length) return;
+    let cursorX = startX;
+    let lineMax = startX + width;
+    const baseX = extra.baseX ?? descLeft;
+    const baseWidth = extra.baseWidth ?? maxW;
+
+    const pieces = [];
+    tokens.forEach((tok) => {
+      const parts = tok.text.split(/(\s+)/);
+      parts.forEach((part) => {
+        if (part) pieces.push({ ...tok, text: part });
+      });
+    });
+
+    pieces.forEach((piece) => {
+      applySpanFont(piece);
+      let w = doc.getTextWidth(piece.text);
+      if (cursorX > baseX && cursorX + w > lineMax && piece.text.trim()) {
+        if (y + tableLineHeight + 2 > contentBottom()) {
+          addNewPage();
+        } else {
+          y += tableLineHeight;
+        }
+        cursorX = baseX;
+        lineMax = baseX + baseWidth;
+      }
+      if (y + 2 > contentBottom()) {
+        addNewPage();
+        cursorX = baseX;
+        lineMax = baseX + baseWidth;
+      }
+      if (piece.highlight && piece.text.trim()) {
+        doc.setFillColor(255, 255, 0);
+        doc.rect(cursorX - 1, y - 7.5, w + 2, 10, "F");
+      }
+      applySpanFont(piece);
+      doc.text(piece.text, cursorX, y);
+      cursorX += w;
+    });
+    y += tableLineHeight;
+    doc.setTextColor(0, 0, 0);
+    doc.setFont("helvetica", "normal");
+  };
+
+
+  const ensureSpace = (needed = tableLineHeight + 2) => {
+    if (y + needed > contentBottom()) {
+      y = addNewPage();
+      doc.setFontSize(8.5);
+    }
+  };
+
+  const wrapWords = (text, firstX, firstWidth, nextX, nextWidth) => {
+    const words = String(text || "").split(/\s+/).filter(Boolean);
+    const lines = [];
+    let current = "";
+    let width = firstWidth;
+    let x = firstX;
+    const push = () => {
+      if (!current) return;
+      lines.push({ text: current, x });
+      current = "";
+      width = nextWidth;
+      x = nextX;
+    };
+    words.forEach((word) => {
+      const test = current ? current + " " + word : word;
+      doc.setFontSize(8.5);
+      if (doc.getTextWidth(test) <= width) {
+        current = test;
+      } else {
+        push();
+        current = word;
+      }
+    });
+    if (current) lines.push({ text: current, x });
+    return lines;
+  };
+
+
+  const findPhraseSplit = (text) => {
+    const s = String(text || "");
+    for (let i = 0; i < s.length; i++) {
+      const ch = s[i];
+      if (ch !== "." && ch !== ",") continue;
+      const prev = i > 0 ? s[i - 1] : "";
+      const next = i + 1 < s.length ? s[i + 1] : "";
+      if (/\d/.test(prev) && /\d/.test(next)) continue;
+      return i;
+    }
+    return -1;
+  };
+
+  const drawFlowText = (fullText, firstBold) => {
+    const trimmed = String(fullText || "").replace(/\s+/g, " ").trim();
+    if (!trimmed) return;
+
+    let boldPart = "";
+    let restPart = trimmed;
+    if (firstBold) {
+      let splitIndex = findPhraseSplit(trimmed);
+      if (splitIndex === -1) {
+        boldPart = trimmed;
+        restPart = "";
+      } else {
+        boldPart = trimmed.substring(0, splitIndex + 1).trim();
+        restPart = trimmed.substring(splitIndex + 1).trim();
+      }
+    }
+
+    if (boldPart) {
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8.5);
+      doc.setTextColor(0, 0, 0);
+      const boldWords = boldPart.split(/\s+/).filter(Boolean);
+      let line = "";
+      boldWords.forEach((word) => {
+        const test = line ? line + " " + word : word;
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(8.5);
+        if (doc.getTextWidth(test) <= maxW) {
+          line = test;
+        } else {
+          if (line) {
+            ensureSpace();
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(8.5);
+            doc.text(line, descLeft, y);
+            y += tableLineHeight;
+          }
+          line = word;
+        }
+      });
+      ensureSpace();
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8.5);
+      if (line) doc.text(line, descLeft, y);
+      if (!restPart) {
+        y += tableLineHeight;
+        return;
+      }
+      const used = line ? doc.getTextWidth(line) + doc.getTextWidth(" ") : 0;
+      const firstX = descLeft + used;
+      const firstAvail = Math.max(18, maxW - used);
+      drawStyledText(restPart, firstX, firstAvail, { baseX: descLeft, baseWidth: maxW });
+      return;
+    }
+
+    ensureSpace();
+    drawStyledText(trimmed, descLeft, maxW, { baseX: descLeft, baseWidth: maxW });
+  };
+
+  const measureFlow = (fullText, firstBold) => {
+    const trimmed = String(fullText || "").replace(/\s+/g, " ").trim();
+    if (!trimmed) return 0;
+    doc.setFontSize(8.5);
+    if (!firstBold) {
+      return doc.splitTextToSize(trimmed, maxW).length * tableLineHeight;
+    }
+    let splitIndex = findPhraseSplit(trimmed);
+    const boldPart = splitIndex === -1 ? trimmed : trimmed.substring(0, splitIndex + 1).trim();
+    const restPart = splitIndex === -1 ? "" : trimmed.substring(splitIndex + 1).trim();
+    doc.setFont("helvetica", "bold");
+    if (!restPart) return (doc.splitTextToSize(boldPart, maxW).length || 1) * tableLineHeight;
+    const boldW = doc.getTextWidth(boldPart);
+    if (boldW >= maxW) {
+      doc.setFont("helvetica", "normal");
+      return (
+        doc.splitTextToSize(boldPart, maxW).length +
+        doc.splitTextToSize(restPart, maxW).length
+      ) * tableLineHeight;
+    }
+    const gap = doc.getTextWidth(" ");
+    doc.setFont("helvetica", "normal");
+    const lines = wrapWords(restPart, descLeft + boldW + gap, Math.max(24, maxW - boldW - gap), descLeft, maxW);
+    return Math.max(1, lines.length) * tableLineHeight;
+  };
+
+  const parseBlocks = (description) => {
+    const fullDesc = (description || "").replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
+    const rawLines = fullDesc ? fullDesc.split("\n") : [];
+    const blocks = [];
+    let flow = [];
+    const flushFlow = () => {
+      if (!flow.length) return;
+      blocks.push({ type: "flow", text: flow.join(" ").replace(/\s+/g, " ").trim() });
+      flow = [];
+    };
+    rawLines.forEach((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) {
+        flushFlow();
+        return;
+      }
+      const sectionMatch = trimmed.match(/^!!(.+)!!$/);
+      if (sectionMatch) {
+        flushFlow();
+        blocks.push({ type: "section", text: sectionMatch[1].trim() });
+        return;
+      }
+      if (trimmed.startsWith("•") || trimmed.startsWith("-")) {
+        flushFlow();
+        let bulletContent = trimmed.replace(/^[•-]\s*/, "").trim();
+        const red = bulletContent.includes("##");
+        if (red) bulletContent = bulletContent.replace(/##/g, "").trim();
+        blocks.push({ type: "bullet", text: bulletContent, red });
+        return;
+      }
+      if (/^NOTES:\s*/i.test(trimmed)) {
+        flushFlow();
+        const after = trimmed.replace(/^NOTES:\s*/i, "").trim();
+        blocks.push({ type: "notes" });
+        if (after) {
+          if (after.startsWith("•") || after.startsWith("-")) {
+            let bulletContent = after.replace(/^[•-]\s*/, "").trim();
+            const red = bulletContent.includes("##");
+            if (red) bulletContent = bulletContent.replace(/##/g, "").trim();
+            blocks.push({ type: "bullet", text: bulletContent, red });
+          } else {
+            blocks.push({ type: "flow", text: after });
+          }
+        }
+        return;
+      }
+      flow.push(trimmed);
+    });
+    flushFlow();
+    return blocks;
+  };
+
+  const measureBlocks = (blocks) => {
+    let h = 0;
+    blocks.forEach((block, i) => {
+      if (block.type === "section") h += tableLineHeight + 4;
+      else if (block.type === "notes") h += tableLineHeight;
+      else if (block.type === "bullet") {
+        doc.setFont("helvetica", "italic");
+        doc.setFontSize(8.5);
+        h += doc.splitTextToSize("• " + block.text, maxW).length * tableLineHeight;
+      } else if (block.type === "flow") {
+        const firstBold = !blocks.slice(0, i).some((b) => b.type === "flow");
+        h += measureFlow(block.text, firstBold);
+      }
+    });
+    return h;
+  };
 
   // ==================== TABLE BODY ====================
   (quote.line_items || []).forEach((item) => {
-    // Pre-check: if we are already too close to the bottom, start a new page first
-    if (y > pageHeight - bottomSafe - 25) {
-      y = addNewPage();
-    }
-
     const qty = Number(item.qty) > 0 ? item.qty.toString() : "";
     const netPrice = item.included ? "Included" : formatMoney(item.sell_price);
     const extPrice = item.included ? "Included" : formatMoney(item.total_price);
-
-    let fullDesc = (item.description || "")
-      .replace(/\r\n/g, "\n")
-      .replace(/\r/g, "\n")
-      .trim();
-    const rawLines = fullDesc.split("\n");
-    let startY = y;
-    let currentY = startY;
-
-rawLines.forEach((line) => {
-  const trimmed = line.trim();
-  if (!trimmed) {
-    currentY += tableLineHeight;
-    return;
-  }
-
-  // ===== SECTION HEADER ( !!Text!! ) =====
-  const sectionMatch = trimmed.match(/^!!(.+)!!$/);
-  if (sectionMatch) {
-    const headerText = sectionMatch[1].trim();
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(11);
-    doc.setTextColor(37, 99, 235);
-
-    const headerX = colX[2] + 150;
-    doc.text(headerText, headerX, currentY, { align: "center" });
-
-    currentY += tableLineHeight + 4;
-    doc.setTextColor(0, 0, 0);
-    doc.setFontSize(8.5);
-    return;
-  }
-
-  // ===== Bullet lines =====
-  if (trimmed.startsWith("•") || trimmed.startsWith("-")) {
-    doc.setFont("helvetica", "italic");
-
-    let bulletContent = trimmed.replace(/^[•-]\s*/, "").trim();
-
-    // -##this is red##  → red bullet
-    const isRedBullet = bulletContent.includes("##");
-    if (isRedBullet) {
-      bulletContent = bulletContent.replace(/##/g, "").trim();
-      doc.setTextColor(200, 0, 0);
-    } else {
-      doc.setTextColor(0, 0, 0);
-    }
-
-    const bulletText = "• " + bulletContent;
-    const wrapped = doc.splitTextToSize(bulletText, descMaxWidth - 30);
-
-    const bulletIndent = colX[2] + 12;
-    const wrapIndent = colX[2] + 17;
-
-    wrapped.forEach((wrappedLine, i) => {
-      if (i === 0) {
-        doc.text(wrappedLine, bulletIndent, currentY);
-      } else {
-        doc.text(wrappedLine, wrapIndent, currentY);
-      }
-      currentY += tableLineHeight;
-    });
-
-    doc.setTextColor(0, 0, 0);
-  }
-  // ===== Normal description lines =====
-  else {
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(0, 0, 0);
-
-    let splitIndex = trimmed.search(/[.,]/);
-    if (splitIndex === -1) splitIndex = trimmed.length;
-
-    const boldPart = trimmed.substring(0, splitIndex + 1).trim();
-    const restPart = trimmed.substring(splitIndex + 1).trim();
-
-    const boldWrapped = doc.splitTextToSize(boldPart, descMaxWidth - 30);
-    boldWrapped.forEach((line) => {
-      doc.text(line, colX[2] + 5, currentY);
-      currentY += tableLineHeight;
-    });
-
-    if (restPart) {
-      doc.setFont("helvetica", "normal");
-      const restWrapped = doc.splitTextToSize(restPart, descMaxWidth - 30);
-      restWrapped.forEach((line) => {
-        doc.text(line, colX[2] + 5, currentY);
-        currentY += tableLineHeight;
-      });
-    }
-  }
-});
-
-    // // TAG / QTY / Prices
-    // doc.setFont("helvetica", "bold");
-    // const tagText = item.tag || "";
-    // const wrappedTag = doc.splitTextToSize(tagText, 70);
-
-    // wrappedTag.forEach((line, i) => {
-    //   doc.text(line, colX[0] + 8, startY + 1 + i * tableLineHeight);
-    // });
-
-        doc.setFont("helvetica", "bold");
+    const blocks = parseBlocks(item.description);
     const tagText = item.tag || "";
-    const wrappedTag = doc.splitTextToSize(tagText, 70);
-
-    wrappedTag.forEach((line, i) => {
-      if (/VE Option|Basis of Design/i.test(line)) {
-        doc.setTextColor(50, 90, 165);
-      } else {
-        doc.setTextColor(0, 0, 0);
-      }
-      doc.text(line, colX[0] + 8, startY + 1 + i * tableLineHeight);
+    const tagMaxW = 86;
+    const tagSourceLines = String(tagText).replace(/\r\n/g, "\n").split("\n");
+    const stripTagMarks = (s) =>
+      String(s)
+        .replace(/\*\*/g, "")
+        .replace(/\/\//g, "")
+        .replace(/\[hl\]|\[\/hl\]/g, "")
+        .replace(/\[\/?(red|blue|green)\]/g, "");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8.5);
+    let tagHeight = 0;
+    tagSourceLines.forEach((line) => {
+      const plain = stripTagMarks(line) || " ";
+      tagHeight += Math.max(1, doc.splitTextToSize(plain, tagMaxW).length) * tableLineHeight;
     });
+    if (!tagSourceLines.length) tagHeight = tableLineHeight;
+    const descHeight = measureBlocks(blocks);
+    const itemHeight = Math.max(tagHeight, descHeight) + 20;
+    const usablePage = pageHeight - 118 - bottomSafe;
+
+    // Only start a new page if there is no room for even two lines.
+    // Long items fill the rest of this page, then continue on the next.
+    if (y + tableLineHeight * 2 > contentBottom()) {
+      y = addNewPage();
+      doc.setFontSize(8.5);
+    }
+
+    const startY = y;
+    const itemStartPage = doc.internal.getCurrentPageInfo().pageNumber;
+
+    const tagX = colX[0] + 8;
+    const savedY = y;
+    y = startY + 1;
+    const AUTO_BLUE = [50, 90, 165];
+    const SPEC_SIZE = 6.5;
+    let markedTag = String(tagText).replace(
+      /\(([\s\S]*?Specification[\s\S]*?)\)/gi,
+      "[spec]($1)[/spec]"
+    );
+    markedTag = markedTag.replace(
+      /(VE Option|Basis of Design)/gi,
+      "[autoBlue]$1[/autoBlue]"
+    );
+    markedTag = markedTag.replace(/\(Required\)/gi, "[req](Required)[/req]");
+    const markedLines = markedTag.replace(/\r\n/g, "\n").split("\n");
+    let inSpec = false;
+    let inBlue = false;
+    let inReq = false;
+    markedLines.forEach((sourceLine) => {
+      const linePlain = stripTagMarks(
+        String(sourceLine)
+          .replace(/\[spec\]|\[\/spec\]|\[autoBlue\]|\[\/autoBlue\]|\[req\]|\[\/req\]/g, "")
+      ).trim();
+      const autoHl = /^[A-Za-z]+-\d/.test(linePlain);
+      const pieces = String(sourceLine).split(/(\[spec\]|\[\/spec\]|\[autoBlue\]|\[\/autoBlue\]|\[req\]|\[\/req\])/);
+      const tokens = [];
+      pieces.forEach((part) => {
+        if (part === "[spec]") { inSpec = true; return; }
+        if (part === "[/spec]") { inSpec = false; return; }
+        if (part === "[autoBlue]") { inBlue = true; return; }
+        if (part === "[/autoBlue]") { inBlue = false; return; }
+        if (part === "[req]") { inReq = true; return; }
+        if (part === "[/req]") { inReq = false; return; }
+        if (!part) return;
+        tokenizeStyled._defaults = {
+          bold: !inSpec,
+          italic: inSpec,
+          color: inReq ? [200, 0, 0] : inBlue ? AUTO_BLUE : null,
+        };
+        const rawTokens = tokenizeStyled(part);
+        tokenizeStyled._defaults = {};
+        rawTokens.forEach((tok) => {
+          tokens.push({
+            ...tok,
+            bold: inSpec ? false : true,
+            italic: inSpec ? true : !!tok.italic,
+            color: inReq ? [200, 0, 0] : inBlue ? AUTO_BLUE : tok.color,
+            highlight: inReq ? false : !!(tok.highlight || autoHl),
+            size: inSpec ? SPEC_SIZE : 8.5,
+          });
+        });
+        if (!rawTokens.length) {
+          tokens.push({
+            text: part,
+            bold: !inSpec,
+            italic: inSpec,
+            color: inReq ? [200, 0, 0] : inBlue ? AUTO_BLUE : null,
+            highlight: inReq ? false : autoHl,
+            size: inSpec ? SPEC_SIZE : 8.5,
+          });
+        }
+      });
+      let cursorX = tagX;
+      tokens.forEach((tok) => {
+        const bits = tok.text.split(/(\s+)/);
+        bits.forEach((bit) => {
+          if (!bit) return;
+          applySpanFont({ ...tok, text: bit });
+          if (tok.color) doc.setTextColor(...tok.color);
+          const w = doc.getTextWidth(bit);
+          if (cursorX > tagX && cursorX + w > tagX + tagMaxW && bit.trim()) {
+            y += tableLineHeight;
+            cursorX = tagX;
+          }
+          if (tok.highlight && bit.trim()) {
+            doc.setFillColor(255, 255, 0);
+            doc.rect(cursorX - 1, y - 7.5, w + 2, 10, "F");
+            applySpanFont({ ...tok, text: bit });
+            if (tok.color) doc.setTextColor(...tok.color);
+          }
+          doc.text(bit, cursorX, y);
+          cursorX += w;
+        });
+      });
+      y += tableLineHeight;
+    });
+    const tagEndY = y;
+    y = savedY;
     doc.setTextColor(0, 0, 0);
-
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8.5);
     doc.text(qty, colX[1], startY + 1, { align: "center" });
-
     doc.setFont("helvetica", "normal");
     doc.text(netPrice, colX[3], startY + 1, { align: "center" });
-
     doc.setFont("helvetica", "bold");
     doc.text(extPrice, colX[4], startY + 1, { align: "center" });
 
-    const tagHeight = wrappedTag.length * tableLineHeight;
-    const descHeight = currentY - startY;
-    y = startY + Math.max(tagHeight, descHeight) + 12;
-    y += 8;
+    let usedFlow = false;
+    blocks.forEach((block) => {
+      if (block.type === "section") {
+        ensureSpace(tableLineHeight + 4);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(11);
+        doc.setTextColor(37, 99, 235);
+        doc.text(block.text, colX[2] + 150, y, { align: "center" });
+        y += tableLineHeight + 4;
+        doc.setTextColor(0, 0, 0);
+        doc.setFontSize(8.5);
+        return;
+      }
+      if (block.type === "notes") {
+        ensureSpace();
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(8.5);
+        doc.setTextColor(0, 0, 0);
+        doc.text("NOTES:", descLeft, y);
+        y += tableLineHeight;
+        return;
+      }
+      if (block.type === "bullet") {
+        const bulletIndent = colX[2] + 12;
+        const wrapIndent = colX[2] + 17;
+        ensureSpace();
+        doc.setFont("helvetica", "italic");
+        doc.setFontSize(8.5);
+        doc.setTextColor(block.red ? 200 : 0, 0, 0);
+        doc.text("• ", bulletIndent, y);
+        const prefixW = doc.getTextWidth("• ");
+        drawStyledText(block.text, bulletIndent + prefixW, maxW - prefixW, {
+          baseX: wrapIndent,
+          baseWidth: maxW - 8,
+          defaultItalic: true,
+          defaultColor: block.red ? [200, 0, 0] : null,
+        });
+        return;
+      }
+      if (block.type === "flow") {
+        const firstBold = !usedFlow;
+        usedFlow = true;
+        drawFlowText(block.text, firstBold);
+      }
+    });
 
-    // Final safety check after drawing the item
-    if (y > pageHeight - bottomSafe) {
-      y = addNewPage();
+    const samePageAsStart =
+      doc.internal.getCurrentPageInfo().pageNumber === itemStartPage;
+    if (samePageAsStart) {
+      y = Math.max(y, tagEndY || startY, startY + tagHeight) + 16;
+    } else {
+      y += 16;
     }
   });
 
@@ -2498,6 +2946,17 @@ const current = contactToArray(quoteForm.contact);
 </label>
 
 <label>
+  Quote #
+  <input
+    type="text"
+    name="quote_number"
+    placeholder="Enter quote number"
+    value={quoteForm.quote_number || ""}
+    onChange={updateForm(setQuoteForm)}
+  />
+</label>
+
+<label>
   Quote Date
   <input
     type="date"
@@ -2722,15 +3181,29 @@ const current = contactToArray(quoteForm.contact);
 
       <label>
         Tag
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 6,
+            margin: "6px 0 8px",
+            alignItems: "center",
+          }}
+        >
+          <span style={{ fontSize: 12, color: "#555" }}>Select text, then:</span>
+          <button type="button" className="btn secondary" onClick={() => applyFieldStyle("tag", "highlight")}>Highlight</button>
+        </div>
         <textarea
+          ref={tagRef}
           className="tag-textarea"
           name="tag"
-          placeholder="Tag"
+          placeholder="Highlight tag text, then pick a style"
           value={lineItemForm.tag}
           onChange={updateForm(setLineItemForm)}
           rows={4}
         />
       </label>
+
 
       <label>
         Item / Model / Part #
@@ -2801,10 +3274,30 @@ const current = contactToArray(quoteForm.contact);
 
       <label style={{ gridColumn: "span 2" }}>
         Description
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 6,
+            margin: "6px 0 8px",
+            alignItems: "center",
+          }}
+        >
+          <span style={{ fontSize: 12, color: "#555" }}>Select text, then:</span>
+          <button type="button" className="btn secondary" onClick={() => applyFieldStyle("description", "header")}>Header</button>
+          <button type="button" className="btn secondary" onClick={() => applyFieldStyle("description", "bold")}>Bold</button>
+          <button type="button" className="btn secondary" onClick={() => applyFieldStyle("description", "italic")}>Italic</button>
+          <button type="button" className="btn secondary" onClick={() => applyFieldStyle("description", "highlight")}>Highlight</button>
+          <button type="button" className="btn secondary" style={{ color: "#c00" }} onClick={() => applyFieldStyle("description", "red")}>Red</button>
+          <button type="button" className="btn secondary" style={{ color: "#1d4ed8" }} onClick={() => applyFieldStyle("description", "blue")}>Blue</button>
+          <button type="button" className="btn secondary" style={{ color: "#15803d" }} onClick={() => applyFieldStyle("description", "green")}>Green</button>
+          <button type="button" className="btn secondary" onClick={() => applyFieldStyle("description", "clear")}>Clear style</button>
+        </div>
         <textarea
+          ref={descriptionRef}
           className="description-box"
           name="description"
-          placeholder="Description"
+          placeholder="Highlight text above, then pick Bold / Highlight / a color"
           value={lineItemForm.description}
           onChange={updateForm(setLineItemForm)}
         />
