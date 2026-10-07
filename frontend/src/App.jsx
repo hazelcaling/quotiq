@@ -13,7 +13,9 @@ import lastTwoPagesPdf from "./assets/last two page.pdf";
 import LoadingSpinner from "./LoadingSpinner";
 
 const API =
-  import.meta.env.VITE_API_URL || "http://localhost:5000" || "http://127.0.0.1:5000";
+  import.meta.env.VITE_API_URL || 
+  "http://localhost:5000" || "http://127.0.0.1:5000"
+  ;
 
 axios.defaults.withCredentials = true;
 
@@ -3770,11 +3772,9 @@ const totalDashPages = Math.ceil(visibleQuotes.length / dashPageSize) || 1;
       <div className="card table-wrap">
         <div className="line-toolbar" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 8 }}>
           <h3 style={{ margin: 0 }}>Line Items</h3>
-          {(isCopyDraft ? draftCopiedLineItems : (activeQuote.line_items || [])).length === 0 && (
-            <button className="btn primary" type="button" onClick={() => beginAddLine()}>
-              Add Line Item
-            </button>
-          )}
+          <button className="btn primary" type="button" onClick={() => beginAddLine()}>
+            Add Line Item
+          </button>
         </div>
 
 
