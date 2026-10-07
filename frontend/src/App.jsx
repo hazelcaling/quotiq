@@ -196,6 +196,25 @@ function AppContent() {
   const tagRef = useRef(null);
 
   const [editingLineItemId, setEditingLineItemId] = useState(null);
+  const [insertAfterId, setInsertAfterId] = useState(null);
+  const [lineVendorResults, setLineVendorResults] = useState([]);
+  const [outsideSalesOpen, setOutsideSalesOpen] = useState(false);
+  const [salesQuery, setSalesQuery] = useState("");
+  const outsideSalesRef = useRef(null);
+  const outsideSalesNames = [
+    "Mike Llorence",
+    "Phil Haas",
+    "Luke Hanzlik",
+    "Alex White",
+    "Mark Labitad",
+    "Rhiannon Canas",
+    "Megan McCabe",
+    "Hazel Caling",
+  ];
+  const [styleNote, setStyleNote] = useState("");
+  const [tagColWidth, setTagColWidth] = useState(220);
+  const HEADER_MAX = 40;
+  const [lineSearchText, setLineSearchText] = useState("");
   const [draggedLineItem, setDraggedLineItem] = useState(null);
 
   const [companies, setCompanies] = useState([]);
@@ -211,8 +230,17 @@ function AppContent() {
   const [dashSort, setDashSort] = useState("id");
   const [dashDirection, setDashDirection] = useState("desc");
   const [dashSalesman, setDashSalesman] = useState("");
+  const [dashColumnFilters, setDashColumnFilters] = useState({ sales: "", customer: "", location: "", status: "" });
+  const [dashColumnOpen, setDashColumnOpen] = useState("");
+  const [dashColumnQuery, setDashColumnQuery] = useState("");
+  const dashColumnRef = useRef(null);
 
   const [productSearch, setProductSearch] = useState("");
+  const [productFilters, setProductFilters] = useState({ category: "", type: "", series: "", model: "", vendor: "" });
+  const [productFilterOpen, setProductFilterOpen] = useState("");
+  const [productFilterQuery, setProductFilterQuery] = useState("");
+  const productFilterRef = useRef(null);
+  const [productFilterOptions, setProductFilterOptions] = useState({ category: [], type: [], series: [], model: [], vendor: [] });
   const [noteSearch, setNoteSearch] = useState("");
   const [companySearch, setCompanySearch] = useState("");
   const [contactSearch, setContactSearch] = useState("");
@@ -299,7 +327,7 @@ const dashPageSize = 10;
     const freight = Number(lineItemForm.freight || 0);
     const startup = Number(lineItemForm.startup || 0);
     const surcharge = Number(lineItemForm.surcharge || 0);
-    const qty = Number(lineItemForm.qty || 1);
+    const qty = lineItemForm.qty === "" || lineItemForm.qty === null || lineItemForm.qty === undefined ? 1 : Number(lineItemForm.qty);
     const net = list * (1 + surcharge) * multiplier;
     const sell = Math.round(net * (1 + markup) + freight + startup);
     return { net, sell, total: sell * qty };
@@ -308,6 +336,68 @@ const dashPageSize = 10;
   useEffect(() => {
     checkLogin();
   }, []);
+
+  useEffect(() => {
+    if (!dashColumnOpen) return undefined;
+    const close = (event) => {
+      if (dashColumnRef.current && !dashColumnRef.current.contains(event.target)) {
+        setDashColumnOpen("");
+        setDashColumnQuery("");
+      }
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [dashColumnOpen]);
+
+  useEffect(() => {
+    const closeLookups = (event) => {
+      const target = event.target;
+      if (target && target.closest && target.closest(".lookup-field, .vendor-lookup, .sales-picker")) return;
+      setProjectResults([]);
+      setCompanyResults([]);
+      setContactResults([]);
+      setLocationResults([]);
+      setLineProductResults([]);
+      setLineVendorResults([]);
+      setActiveLookupField(null);
+    };
+    document.addEventListener("mousedown", closeLookups);
+    return () => document.removeEventListener("mousedown", closeLookups);
+  }, []);
+
+  useEffect(() => {
+    if (!productFilterOpen) return undefined;
+    const close = (event) => {
+      if (productFilterRef.current && !productFilterRef.current.contains(event.target)) {
+        setProductFilterOpen("");
+        setProductFilterQuery("");
+      }
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [productFilterOpen]);
+
+  useEffect(() => {
+    if (!outsideSalesOpen) return undefined;
+    const close = (event) => {
+      if (outsideSalesRef.current && !outsideSalesRef.current.contains(event.target)) {
+        setOutsideSalesOpen(false);
+        setSalesQuery("");
+      }
+    };
+    const onKey = (event) => {
+      if (event.key === "Escape") {
+        setOutsideSalesOpen(false);
+        setSalesQuery("");
+      }
+    };
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [outsideSalesOpen]);
 
   useEffect(() => {
   if (!currentUser) return;
@@ -386,6 +476,9 @@ async function clearDashboardFilters() {
   setDashCustomer("");
   setDashLocation("");
   setDashSalesman("");
+  setDashColumnFilters({ sales: "", customer: "", location: "", status: "" });
+  setDashColumnOpen("");
+  setDashColumnQuery("");
   setDashQuoteDateFrom("");
   setDashQuoteDateTo("");
   setDashBidDateFrom("");
@@ -675,17 +768,23 @@ function selectQuoteContact(contact) {
   setContactSearchMessage("");
 }
 
-  async function fetchProducts(search = "") {
-    const res = await axios.get(`${API}/products`, { params: { search } });
+  async function fetchProducts(search = "", filters = productFilters) {
+    const res = await axios.get(`${API}/products`, { params: { search, ...filters } });
     setProducts(res.data);
+    const hasFilter = Object.values(filters || {}).some(Boolean);
+    if (!search && !hasFilter) {
+      const uniq = (key) => [...new Set(res.data.map((row) => String(row[key] || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+      setProductFilterOptions({
+        category: uniq("category"),
+        type: uniq("type"),
+        series: uniq("series"),
+        model: uniq("model"),
+        vendor: uniq("vendor"),
+      });
+    }
   }
 
   async function searchLineProducts(term) {
-  setLineItemForm((prev) => ({
-    ...prev,
-    item: term,
-  }));
-
   if (!term || term.length < 2) {
     setLineProductResults([]);
     setLineProductSearchMessage("");
@@ -761,6 +860,276 @@ function selectLineProduct(p) {
       .trim();
   }
 
+
+  function pdfPreviewHtml(value, kind) {
+    const esc = (s) => String(s || "")
+      .replace(/&/g, "&")
+      .replace(/</g, "<")
+      .replace(/>/g, ">");
+    const inline = (line) => {
+      let html = esc(line);
+      html = html.replace(/\*\*([\s\S]+?)\*\*/g, "<strong>$1</strong>");
+      html = html.replace(/\/\/([\s\S]+?)\/\//g, "<em>$1</em>");
+      html = html.replace(/\[hl\]([\s\S]+?)\[\/hl\]/g, "<mark>$1</mark>");
+      html = html.replace(/\[red\]([\s\S]+?)\[\/red\]/g, '<span style="color:#c80000">$1</span>');
+      html = html.replace(/\[blue\]([\s\S]+?)\[\/blue\]/g, '<span style="color:#325aa5">$1</span>');
+      html = html.replace(/\[green\]([\s\S]+?)\[\/green\]/g, '<span style="color:#15803d">$1</span>');
+      return html;
+    };
+    const lines = String(value || "").replace(/\r\n/g, "\n").split("\n");
+    if (kind === "tag") {
+      return lines.map((line) => {
+        const header = line.match(/^\s*!!([\s\S]*?)!!\s*$/);
+        let raw = header ? header[1] : line;
+        const plain = raw.replace(/\[\/?[a-z]+\]/gi, "").replace(/\*\*/g, "").replace(/\/\//g, "").trim();
+        const autoHl = /^[A-Za-z]+-\d/.test(plain);
+        const optionSmall = /^Option\b/i.test(plain);
+        const budgetary = /^Budgetary\b/i.test(plain);
+        raw = raw.replace(/\(([\s\S]*?Specification[\s\S]*?)\)/gi, "//($1)//");
+        raw = raw.replace(/(VE Option|Basis of Design)/gi, "[blue]$1[/blue]");
+        raw = raw.replace(/\(Required\)/gi, "[red](Required)[/red]");
+        let body = inline(raw);
+        body = body.replace(/(\([^)]*Specification[^)]*\))/gi, '<span class="spec-size">$1</span>');
+        if (optionSmall) body = `<span class="tag-option">${body}</span>`;
+        if (budgetary) body = `<span class="tag-budgetary">${body}</span>`;
+        if (autoHl && !optionSmall && !budgetary) body = `<mark>${body}</mark>`;
+        const cls = [
+          "tag-preview",
+          optionSmall ? "option-line" : "",
+          budgetary ? "budgetary-line" : "",
+        ].filter(Boolean).join(" ");
+        return body ? `<div class="${cls}">${body}</div>` : "";
+      }).join("");
+    }
+    const blocks = [];
+    let flow = [];
+    const flush = () => {
+      if (!flow.length) return;
+      blocks.push({ type: "flow", text: flow.join(" ").replace(/\s+/g, " ").trim() });
+      flow = [];
+    };
+    lines.forEach((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) { flush(); return; }
+      const section = trimmed.match(/^!!(.+)!!$/);
+      const boldHeader = trimmed.match(/^\*\*(.{1,40})\*\*$/);
+      if (section || boldHeader) {
+        flush();
+        blocks.push({ type: "section", text: (section ? section[1] : boldHeader[1]).replace(/\*\*/g, "").trim() });
+        return;
+      }
+      if (trimmed.startsWith("•") || trimmed.startsWith("-")) {
+        flush();
+        blocks.push({ type: "bullet", text: trimmed.replace(/^[•-]\s*/, "") });
+        return;
+      }
+      flow.push(trimmed);
+    });
+    flush();
+    let usedBold = false;
+    return blocks.map((block) => {
+      if (block.type === "section") return `<div class="section">${inline(block.text)}</div>`;
+      if (block.type === "bullet") {
+        const red = block.text.includes("##");
+        const bullet = inline(block.text.replace(/##/g, ""));
+        return `<div class="bullet${red ? " red" : ""}">• ${bullet}</div>`;
+      }
+      if (!usedBold) {
+        usedBold = true;
+        const s = block.text;
+        let idx = -1;
+        for (let i = 0; i < s.length; i++) {
+          const ch = s[i];
+          if (ch !== "." && ch !== ",") continue;
+          const prev = i > 0 ? s[i - 1] : "";
+          const next = i + 1 < s.length ? s[i + 1] : "";
+          if (/\d/.test(prev) && /\d/.test(next)) continue;
+          idx = i;
+          break;
+        }
+        if (idx === -1) return `<div><strong>${inline(s)}</strong></div>`;
+        const lead = s.slice(0, idx + 1).trim();
+        const rest = s.slice(idx + 1).trim();
+        return `<div><strong>${inline(lead)}</strong>${rest ? ` ${inline(rest)}` : ""}</div>`;
+      }
+      return `<div>${inline(block.text)}</div>`;
+    }).join("");
+  }
+
+  function markersToHtml(value) {
+    const esc = (s) => String(s || "")
+      .replace(/&/g, "&")
+      .replace(/</g, "<")
+      .replace(/>/g, ">");
+    return String(value || "").split("\n").map((line) => {
+      const header = line.match(/^\s*!!([\s\S]*?)!!\s*$/);
+      let html = esc(header ? header[1] : line);
+      html = html.replace(/\*\*([\s\S]+?)\*\*/g, "<strong>$1</strong>");
+      html = html.replace(/\/\/([\s\S]+?)\/\//g, "<em>$1</em>");
+      html = html.replace(/\[hl\]([\s\S]+?)\[\/hl\]/g, "<mark>$1</mark>");
+      html = html.replace(/\[red\]([\s\S]+?)\[\/red\]/g, '<span style="color:#c80000">$1</span>');
+      html = html.replace(/\[blue\]([\s\S]+?)\[\/blue\]/g, '<span style="color:#325aa5">$1</span>');
+      html = html.replace(/\[green\]([\s\S]+?)\[\/green\]/g, '<span style="color:#15803d">$1</span>');
+      if (header) html = `<strong class="section">${html}</strong>`;
+      return html || "<br>";
+    }).join("<br>");
+  }
+
+  function htmlToMarkers(html) {
+    const doc = new DOMParser().parseFromString(`<div>${html || ""}</div>`, "text/html");
+    const inline = (node) => {
+      if (node.nodeType === 3) return node.textContent || "";
+      if (node.nodeType !== 1) return "";
+      const tag = node.tagName.toLowerCase();
+      if (tag === "br") return "\n";
+      if (tag === "div" || tag === "p") return `\n${Array.from(node.childNodes).map(inline).join("")}`;
+      let inner = Array.from(node.childNodes).map(inline).join("");
+      const style = node.getAttribute("style") || "";
+      const isSection = (tag === "b" || tag === "strong") && /\bsection\b/.test(node.className || "");
+      if (isSection) {
+        const bare = inner.replace(/\*\*/g, "").replace(/^!!|!!$/g, "").trim();
+        return `!!${bare}!!`;
+      }
+      const bg = tag === "mark" || /background(-color)?:\s*(#ffe56a|yellow|rgb\(\s*255\s*,\s*229\s*,\s*106\s*\))/i.test(style);
+      const color = /#c80000|#cc0000|rgb\(200,\s*0,\s*0\)/i.test(style) ? "red"
+        : /#1d4ed8|#325aa5|rgb\(29,\s*78,\s*216\)|rgb\(50,\s*90,\s*165\)/i.test(style) ? "blue"
+        : /#15803d|rgb\(21,\s*128,\s*61\)/i.test(style) ? "green" : "";
+      if (tag === "b" || tag === "strong") inner = `**${inner}**`;
+      if (tag === "i" || tag === "em") inner = `//${inner}//`;
+      if (bg) inner = `[hl]${inner}[/hl]`;
+      if (color) inner = `[${color}]${inner}[/${color}]`;
+      return inner;
+    };
+    const root = doc.body.firstChild;
+    const lines = [];
+    let buf = "";
+    const flush = () => { lines.push(buf); buf = ""; };
+    Array.from(root.childNodes).forEach((node) => {
+      const tag = node.nodeType === 1 ? node.tagName.toLowerCase() : "";
+      if (tag === "br") { flush(); return; }
+      if (tag === "div" || tag === "p") {
+        if (buf) flush();
+        const inner = Array.from(node.childNodes).map(inline).join("").replace(/\n+$/g, "");
+        inner.split("\n").forEach((line) => lines.push(line));
+        return;
+      }
+      buf += inline(node);
+    });
+    if (buf || !lines.length) lines.push(buf);
+    return lines.join("\n").replace(/\n+$/g, "");
+  }
+
+  function syncStyledField(field) {
+    const el = field === "tag" ? tagRef.current : descriptionRef.current;
+    if (!el) return;
+    setLineItemForm((prev) => ({ ...prev, [field]: htmlToMarkers(el.innerHTML) }));
+  }
+
+  function applyWordStyle(field, style) {
+    const el = field === "tag" ? tagRef.current : descriptionRef.current;
+    if (!el) return;
+    el.focus();
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount || sel.isCollapsed || !el.contains(sel.anchorNode)) {
+      setStyleNote("Highlight the text first, then click a style.");
+      window.setTimeout(() => setStyleNote(""), 4000);
+      return;
+    }
+    if (style === "header") {
+      const selected = sel.toString().replace(/\s+/g, " ").trim();
+      if (selected.length > HEADER_MAX) {
+        setStyleNote(`Header max is ${HEADER_MAX} characters so it stays on one PDF line. You selected ${selected.length}. Shorten the highlight, then press H again.`);
+        window.setTimeout(() => setStyleNote(""), 5000);
+        return;
+      }
+      const markers = htmlToMarkers(el.innerHTML);
+      let applied = false;
+      const next = markers.split("\n").map((line) => {
+        const bare = stripStyleMarkers(line);
+        if (!selected || !bare.includes(selected)) return line;
+        if (bare.length > HEADER_MAX) return line;
+        applied = true;
+        return `!!${bare}!!`;
+      }).join("\n");
+      if (!applied) {
+        setStyleNote(`Header max is ${HEADER_MAX} characters. Select a short title line, not a full paragraph.`);
+        window.setTimeout(() => setStyleNote(""), 5000);
+        return;
+      }
+      el.innerHTML = markersToHtml(next);
+      setLineItemForm((prev) => ({
+        ...prev,
+        [field]: next,
+        ...(field === "description" ? { qty: 0 } : {}),
+      }));
+      setStyleNote(field === "description" ? "Header set. Qty set to 0." : "");
+      if (field === "description") window.setTimeout(() => setStyleNote(""), 2500);
+      return;
+    }
+    const range = sel.getRangeAt(0).cloneRange();
+    const applyOne = (command, value) => {
+      document.execCommand("removeFormat");
+      sel.removeAllRanges();
+      sel.addRange(range);
+      if (value === undefined) document.execCommand(command);
+      else document.execCommand(command, false, value);
+    };
+    if (style === "clear") document.execCommand("removeFormat");
+    else if (style === "bold") applyOne("bold");
+    else if (style === "italic") applyOne("italic");
+    else if (style === "highlight") applyOne("hiliteColor", "#ffe56a");
+    else if (style === "red") applyOne("foreColor", "#c80000");
+    syncStyledField(field);
+  }
+
+  function fillStyledFields(tag, description) {
+    requestAnimationFrame(() => {
+      if (tagRef.current) tagRef.current.innerHTML = markersToHtml(tag);
+      if (descriptionRef.current) descriptionRef.current.innerHTML = markersToHtml(description);
+    });
+  }
+
+  function beginAddLine(afterId) {
+    setEditingLineItemId("new");
+    setInsertAfterId(afterId || null);
+    setLineItemForm(emptyLineItem);
+    setLineSearchText("");
+    setLineProductResults([]);
+    setLineVendorResults([]);
+    fillStyledFields("", "");
+  }
+
+  function beginEditLine(item) {
+    setEditingLineItemId(item.id);
+    setInsertAfterId(null);
+    setLineItemForm({ ...emptyLineItem, ...item });
+    setLineSearchText("");
+    setLineProductResults([]);
+    setLineVendorResults([]);
+    fillStyledFields(item.tag || "", item.description || "");
+  }
+
+  function cancelLineEdit() {
+    setEditingLineItemId(null);
+    setInsertAfterId(null);
+    setLineItemForm(emptyLineItem);
+    setLineSearchText("");
+    setLineProductResults([]);
+    setLineVendorResults([]);
+  }
+
+  async function searchLineVendors(term) {
+    setLineItemForm((prev) => ({ ...prev, vendor: term }));
+    if (!term || term.length < 2) {
+      setLineVendorResults([]);
+      return;
+    }
+    const res = await axios.get(`${API}/companies`, { params: { search: term, type: "vendor" } });
+    setLineVendorResults(
+      (res.data || []).filter((c) => String(c.type || "").toLowerCase() === "vendor")
+    );
+  }
+
   function applyFieldStyle(field, style) {
     const el = field === "tag" ? tagRef.current : descriptionRef.current;
     if (!el) return;
@@ -789,7 +1158,11 @@ function selectLineProduct(p) {
       return;
     }
     const next = value.slice(0, start) + wrapped + value.slice(end);
-    setLineItemForm((prev) => ({ ...prev, [field]: next }));
+    setLineItemForm((prev) => ({
+      ...prev,
+      [field]: next,
+      ...(style === "header" && field === "description" ? { qty: 0 } : {}),
+    }));
     requestAnimationFrame(() => {
       el.focus();
       const innerStart = start + (wrapped.length - inner.length) / 2;
@@ -1029,25 +1402,47 @@ async function editQuote(q) {
 
 
   async function saveLineItem(e) {
-  e.preventDefault();
+  if (e && e.preventDefault) e.preventDefault();
 
-  if (!activeQuoteId) return;
+  if (!activeQuoteId && !isCopyDraft) return;
 
   setLineItemBusy(true);
   setLineItemMessage(editingLineItemId ? "Updating line item..." : "Adding line item...");
 
   try {
     const payload = { ...lineItemForm };
+    if (tagRef.current) payload.tag = htmlToMarkers(tagRef.current.innerHTML);
+    if (descriptionRef.current) payload.description = htmlToMarkers(descriptionRef.current.innerHTML);
+    const descriptionLines = String(payload.description || "").split("\n").map((line) => line.trim()).filter(Boolean);
+    if (descriptionLines.some((line) => /^!![\s\S]+!!$/.test(line))) payload.qty = 0;
 
-    if (editingLineItemId) {
+    if (editingLineItemId && editingLineItemId !== "new") {
       await axios.put(`${API}/line-items/${editingLineItemId}`, payload);
       setEditingLineItemId(null);
       setLineItemMessage("Line item updated successfully.");
+    } else if (isCopyDraft) {
+      const newItem = { ...payload, id: `draft-${Date.now()}` };
+      setDraftCopiedLineItems((prev) => {
+        const items = [...prev];
+        const at = insertAfterId ? items.findIndex((x) => x.id === insertAfterId) : items.length - 1;
+        items.splice(Math.max(at, -1) + 1, 0, newItem);
+        return items;
+      });
+      setEditingLineItemId(null);
+      setLineItemMessage("Line item added successfully.");
     } else {
-      await axios.post(`${API}/quotes/${activeQuoteId}/line-items`, payload);
+      const res = await axios.post(`${API}/quotes/${activeQuoteId}/line-items`, payload);
+      const newId = res.data.id;
+      const ids = (activeQuote.line_items || []).map((x) => x.id);
+      const at = insertAfterId ? ids.indexOf(insertAfterId) : ids.length - 1;
+      ids.splice(Math.max(at, -1) + 1, 0, newId);
+      await axios.put(`${API}/quotes/${activeQuoteId}/line-items/reorder`, { item_ids: ids });
+      setEditingLineItemId(null);
       setLineItemMessage("Line item added successfully.");
     }
 
+    setInsertAfterId(null);
+    setLineSearchText("");
     setLineItemForm(emptyLineItem);
     await refreshActiveQuote();
   } catch (err) {
@@ -1060,8 +1455,7 @@ async function editQuote(q) {
 }
 
   function editLineItem(item) {
-    setEditingLineItemId(item.id);
-    setLineItemForm({ ...emptyLineItem, ...item });
+    beginEditLine(item);
   }
 
 async function deleteLineItem(id) {
@@ -1374,11 +1768,16 @@ function selectQuoteLocation(location) {
 
   async function saveCrud(e, endpoint, form, editingId, reset, refresh, setEditing) {
     e.preventDefault();
-    if (editingId) await axios.put(`${API}/${endpoint}/${editingId}`, form);
-    else await axios.post(`${API}/${endpoint}`, form);
-    reset();
-    setEditing(null);
-    await refresh();
+    try {
+      if (editingId) await axios.put(`${API}/${endpoint}/${editingId}`, form);
+      else await axios.post(`${API}/${endpoint}`, form);
+      reset();
+      setEditing(null);
+      await refresh();
+    } catch (err) {
+      const message = err.response?.data?.error || err.response?.data?.message || "Unable to save. Please try again.";
+      alert(message);
+    }
   }
 
   async function deleteCrud(endpoint, id, refresh) {
@@ -1730,11 +2129,13 @@ const printQuotePdf = async (quote, mode = "preview") => {
         if (rest.startsWith(rule.open)) {
           const end = text.indexOf(rule.close, i + rule.open.length);
           if (end !== -1) {
+            const inner = text.slice(i + rule.open.length, end);
+            const explicit = !!(rule.style.bold || rule.style.italic || rule.style.highlight || rule.style.color);
             tokens.push({
-              text: text.slice(i + rule.open.length, end),
-              bold: !!rule.style.bold || !!defaults.bold,
-              italic: !!rule.style.italic || !!defaults.italic,
-              color: rule.style.color || defaults.color || null,
+              text: inner,
+              bold: explicit ? !!rule.style.bold : !!defaults.bold,
+              italic: explicit ? !!rule.style.italic : !!defaults.italic,
+              color: rule.style.color || (explicit ? null : defaults.color || null),
               highlight: !!rule.style.highlight,
             });
             i = end + rule.close.length;
@@ -1744,6 +2145,11 @@ const printQuotePdf = async (quote, mode = "preview") => {
         }
       }
       if (matched) continue;
+      const openHit = rules.find((rule) => rest.startsWith(rule.open));
+      if (openHit) {
+        i += openHit.open.length;
+        continue;
+      }
       const nextIdx = Math.min(
         ...rules.map((rule) => {
           const n = text.indexOf(rule.open, i + 1);
@@ -1865,6 +2271,12 @@ const printQuotePdf = async (quote, mode = "preview") => {
     return -1;
   };
 
+  const stripLeadMarks = (s) => String(s || "")
+    .replace(/\*\*/g, "")
+    .replace(/\/\//g, "")
+    .replace(/\[hl\]|\[\/hl\]/g, "")
+    .replace(/\[\/?(red|blue|green)\]/g, "");
+
   const drawFlowText = (fullText, firstBold) => {
     const trimmed = String(fullText || "").replace(/\s+/g, " ").trim();
     if (!trimmed) return;
@@ -1874,10 +2286,10 @@ const printQuotePdf = async (quote, mode = "preview") => {
     if (firstBold) {
       let splitIndex = findPhraseSplit(trimmed);
       if (splitIndex === -1) {
-        boldPart = trimmed;
+        boldPart = stripLeadMarks(trimmed);
         restPart = "";
       } else {
-        boldPart = trimmed.substring(0, splitIndex + 1).trim();
+        boldPart = stripLeadMarks(trimmed.substring(0, splitIndex + 1)).trim();
         restPart = trimmed.substring(splitIndex + 1).trim();
       }
     }
@@ -1932,7 +2344,7 @@ const printQuotePdf = async (quote, mode = "preview") => {
       return doc.splitTextToSize(trimmed, maxW).length * tableLineHeight;
     }
     let splitIndex = findPhraseSplit(trimmed);
-    const boldPart = splitIndex === -1 ? trimmed : trimmed.substring(0, splitIndex + 1).trim();
+    const boldPart = stripLeadMarks(splitIndex === -1 ? trimmed : trimmed.substring(0, splitIndex + 1)).trim();
     const restPart = splitIndex === -1 ? "" : trimmed.substring(splitIndex + 1).trim();
     doc.setFont("helvetica", "bold");
     if (!restPart) return (doc.splitTextToSize(boldPart, maxW).length || 1) * tableLineHeight;
@@ -1967,9 +2379,13 @@ const printQuotePdf = async (quote, mode = "preview") => {
         return;
       }
       const sectionMatch = trimmed.match(/^!!(.+)!!$/);
-      if (sectionMatch) {
+      const boldHeader = trimmed.match(/^\*\*(.{1,40})\*\*$/);
+      if (sectionMatch || boldHeader) {
         flushFlow();
-        blocks.push({ type: "section", text: sectionMatch[1].trim() });
+        blocks.push({
+          type: "section",
+          text: (sectionMatch ? sectionMatch[1] : boldHeader[1]).replace(/\*\*/g, "").trim(),
+        });
         return;
       }
       if (trimmed.startsWith("•") || trimmed.startsWith("-")) {
@@ -2070,17 +2486,23 @@ const printQuotePdf = async (quote, mode = "preview") => {
       "[autoBlue]$1[/autoBlue]"
     );
     markedTag = markedTag.replace(/\(Required\)/gi, "[req](Required)[/req]");
+    markedTag = markedTag.replace(/^(Option\b.*)$/gim, "[opt]$1[/opt]");
+    markedTag = markedTag.replace(/^(Budgetary\b.*)$/gim, "[bud]$1[/bud]");
     const markedLines = markedTag.replace(/\r\n/g, "\n").split("\n");
     let inSpec = false;
     let inBlue = false;
     let inReq = false;
+    let inOpt = false;
+    let inBud = false;
     markedLines.forEach((sourceLine) => {
       const linePlain = stripTagMarks(
         String(sourceLine)
-          .replace(/\[spec\]|\[\/spec\]|\[autoBlue\]|\[\/autoBlue\]|\[req\]|\[\/req\]/g, "")
+          .replace(/\[spec\]|\[\/spec\]|\[autoBlue\]|\[\/autoBlue\]|\[req\]|\[\/req\]|\[opt\]|\[\/opt\]|\[bud\]|\[\/bud\]/g, "")
       ).trim();
       const autoHl = /^[A-Za-z]+-\d/.test(linePlain);
-      const pieces = String(sourceLine).split(/(\[spec\]|\[\/spec\]|\[autoBlue\]|\[\/autoBlue\]|\[req\]|\[\/req\])/);
+      const isOptLine = /^option\b/i.test(linePlain);
+      const isBudLine = /^budgetary\b/i.test(linePlain);
+      const pieces = String(sourceLine).split(/(\[spec\]|\[\/spec\]|\[autoBlue\]|\[\/autoBlue\]|\[req\]|\[\/req\]|\[opt\]|\[\/opt\]|\[bud\]|\[\/bud\])/);
       const tokens = [];
       pieces.forEach((part) => {
         if (part === "[spec]") { inSpec = true; return; }
@@ -2089,32 +2511,38 @@ const printQuotePdf = async (quote, mode = "preview") => {
         if (part === "[/autoBlue]") { inBlue = false; return; }
         if (part === "[req]") { inReq = true; return; }
         if (part === "[/req]") { inReq = false; return; }
+        if (part === "[opt]") { inOpt = true; return; }
+        if (part === "[/opt]") { inOpt = false; return; }
+        if (part === "[bud]") { inBud = true; return; }
+        if (part === "[/bud]") { inBud = false; return; }
         if (!part) return;
+        const quiet = inSpec || inOpt || inBud || isOptLine || isBudLine;
+        const bud = inBud || isBudLine;
         tokenizeStyled._defaults = {
-          bold: !inSpec,
+          bold: !quiet,
           italic: inSpec,
-          color: inReq ? [200, 0, 0] : inBlue ? AUTO_BLUE : null,
+          color: bud || inReq ? [200, 0, 0] : inBlue ? AUTO_BLUE : null,
         };
         const rawTokens = tokenizeStyled(part);
         tokenizeStyled._defaults = {};
         rawTokens.forEach((tok) => {
           tokens.push({
             ...tok,
-            bold: inSpec ? false : true,
+            bold: quiet ? false : true,
             italic: inSpec ? true : !!tok.italic,
-            color: inReq ? [200, 0, 0] : inBlue ? AUTO_BLUE : tok.color,
-            highlight: inReq ? false : !!(tok.highlight || autoHl),
-            size: inSpec ? SPEC_SIZE : 8.5,
+            color: bud || inReq ? [200, 0, 0] : inBlue ? AUTO_BLUE : tok.color,
+            highlight: inReq || bud ? false : !!(tok.highlight || autoHl),
+            size: inSpec || inOpt || isOptLine ? SPEC_SIZE : 8.5,
           });
         });
         if (!rawTokens.length) {
           tokens.push({
             text: part,
-            bold: !inSpec,
+            bold: !quiet,
             italic: inSpec,
-            color: inReq ? [200, 0, 0] : inBlue ? AUTO_BLUE : null,
-            highlight: inReq ? false : autoHl,
-            size: inSpec ? SPEC_SIZE : 8.5,
+            color: bud || inReq ? [200, 0, 0] : inBlue ? AUTO_BLUE : null,
+            highlight: inReq || bud ? false : autoHl,
+            size: inSpec || inOpt || isOptLine ? SPEC_SIZE : 8.5,
           });
         }
       });
@@ -2156,12 +2584,17 @@ const printQuotePdf = async (quote, mode = "preview") => {
     let usedFlow = false;
     blocks.forEach((block) => {
       if (block.type === "section") {
-        ensureSpace(tableLineHeight + 4);
         doc.setFont("helvetica", "bold");
         doc.setFontSize(11);
-        doc.setTextColor(37, 99, 235);
-        doc.text(block.text, colX[2] + 150, y, { align: "center" });
-        y += tableLineHeight + 4;
+        doc.setTextColor(50, 90, 165);
+        const headerLines = doc.splitTextToSize(stripLeadMarks(block.text), Math.max(80, maxW));
+        const headerCenter = descLeft + maxW / 2;
+        headerLines.forEach((line) => {
+          ensureSpace(tableLineHeight + 2);
+          doc.text(line, headerCenter, y, { align: "center" });
+          y += tableLineHeight + 1;
+        });
+        y += 2;
         doc.setTextColor(0, 0, 0);
         doc.setFontSize(8.5);
         return;
@@ -2367,7 +2800,10 @@ pages.forEach((page, index) => {
   if (mode === "download") {
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${quote.quote_number || "quote"}.pdf`;
+    const quoteNo = String(quote.quote_number || "quote").trim() || "quote";
+    const projectName = String(quote.project || "").trim();
+    const fileBase = !projectName || /^n\/a$/i.test(projectName) ? quoteNo : `${quoteNo} - ${projectName}`;
+    a.download = `${fileBase.replace(/[\\/:*?"<>|]/g, "")}.pdf`;
     a.click();
   } else {
     window.open(url, "_blank");
@@ -2384,12 +2820,31 @@ const downloadQuotePdf = async (quote) => {
 
 
   function Dashboard() {
-    const pagedQuotes = quotes.slice(
+    const dashColumnOptions = {
+      sales: [...new Set([
+        "Mike Llorence", "Phil Haas", "Luke Hanzlik", "Alex White", "Mark Labitad", "Rhiannon Canas", "Megan McCabe", "Hazel Caling",
+        ...quotes.flatMap((q) => contactToArray(q.contact)),
+      ])].sort(),
+      customer: [...new Set(quotes.map((q) => String(q.to_company || "").trim()).filter(Boolean))].sort(),
+      location: [...new Set(quotes.map((q) => String(q.location || "").trim()).filter(Boolean))].sort(),
+      status: [...new Set([
+        "Not Started", "In Progress", "Bid Submitted", "Bid Submitted - to Sales", "Not Bidding", "Won", "Lost", "Pending Instruction from Sales",
+        ...quotes.map((q) => String(q.status || "").trim()).filter(Boolean),
+      ])].sort(),
+    };
+    const visibleQuotes = quotes.filter((q) => {
+      if (dashColumnFilters.sales && !contactToArray(q.contact).some((name) => name.toLowerCase() === dashColumnFilters.sales.toLowerCase())) return false;
+      if (dashColumnFilters.customer && String(q.to_company || "").toLowerCase() !== dashColumnFilters.customer.toLowerCase()) return false;
+      if (dashColumnFilters.location && String(q.location || "").toLowerCase() !== dashColumnFilters.location.toLowerCase()) return false;
+      if (dashColumnFilters.status && String(q.status || "").toLowerCase() !== dashColumnFilters.status.toLowerCase()) return false;
+      return true;
+    });
+    const pagedQuotes = visibleQuotes.slice(
   (dashPage - 1) * dashPageSize,
   dashPage * dashPageSize
 );
 
-const totalDashPages = Math.ceil(quotes.length / dashPageSize) || 1;
+const totalDashPages = Math.ceil(visibleQuotes.length / dashPageSize) || 1;
 
 // === NEW: Dashboard Statistics ===
   const totalQuotes = quotes.length;
@@ -2523,44 +2978,6 @@ const totalDashPages = Math.ceil(quotes.length / dashPageSize) || 1;
     onChange={(e) => setDashLineSearch(e.target.value)}
   />
 
-  <select value={dashStatus} onChange={(e) => setDashStatus(e.target.value)}>
-    <option value="">All Status</option>
-    <option>Not Started</option>
-    <option>In Progress</option>
-    <option>Bid Submitted</option>
-        <option>Bid Submitted - to Sales</option>
-    <option>Not Bidding</option>
-    <option>Won</option>
-    <option>Lost</option>
-  </select>
-
-  <select
-  value={dashSalesman}
-  onChange={(e) => setDashSalesman(e.target.value)}
->
-  <option value="">All Outside Sales</option>
-  <option value="Mike Llorence">Mike Llorence</option>
-  <option value="Phil Haas">Phil Haas</option>
-  <option value="Luke Hanzlik">Luke Hanzlik</option>
-  <option value="Alex White">Alex White</option>
-  <option value="Mark Labitad">Mark Labitad</option>
-  <option value="Rhiannon Canas">Rhiannon Canas</option>
-  <option value="Megan McCabe">Megan McCabe</option>
-  <option value="Hazel Caling">Hazel Caling</option>
-</select>
-
-  <input
-    placeholder="Customer"
-    value={dashCustomer}
-    onChange={(e) => setDashCustomer(e.target.value)}
-  />
-
-  <input
-    placeholder="Location"
-    value={dashLocation}
-    onChange={(e) => setDashLocation(e.target.value)}
-  />
-
   <label>
     Quote Date From
     <input
@@ -2654,19 +3071,101 @@ const totalDashPages = Math.ceil(quotes.length / dashPageSize) || 1;
   </div>
 )}
         <div className="table-wrap">
+          {Object.values(dashColumnFilters).some(Boolean) && (
+            <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8, padding: "8px 10px 0" }}>
+              <span style={{ color: "#475569", fontSize: 12 }}>
+                {Object.entries(dashColumnFilters).filter(([, value]) => value).map(([key, value]) => `${key}: ${value}`).join(" · ")}
+              </span>
+              <button
+                type="button"
+                className="btn secondary"
+                style={{ width: "auto", padding: "4px 10px" }}
+                onClick={() => {
+                  setDashColumnFilters({ sales: "", customer: "", location: "", status: "" });
+                  setDashColumnOpen("");
+                  setDashColumnQuery("");
+                  setDashPage(1);
+                }}
+              >
+                Clear filter
+              </button>
+            </div>
+          )}
           <table className="data-table">
             <thead>
               <tr>
-                <th>Outside Sales</th>
-                <th>Quote #</th>
-                <th>Bid Due Date</th>
-                <th>Created On</th>
-                <th>Status</th>
-                <th>Job</th>
-                <th>Customer</th>
-                
-                <th>Total</th>
-                <th>Location</th>
+                {[
+                  ["sales", "Outside Sales"],
+                  ["quote_number", "Quote #"],
+                  ["bid_date", "Bid Due Date"],
+                  ["created_at", "Created On"],
+                  ["status", "Status"],
+                  ["project", "Job"],
+                  ["customer", "Customer"],
+                  ["total", "Total"],
+                  ["location", "Location"],
+                ].map(([key, label]) => {
+                  const canFilter = ["sales", "customer", "location", "status"].includes(key);
+                  return (
+                    <th key={key}>
+                      {canFilter ? (
+                        <div ref={dashColumnOpen === key ? dashColumnRef : null} style={{ position: "relative" }}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDashColumnQuery("");
+                              setDashColumnOpen((open) => open === key ? "" : key);
+                            }}
+                            style={{ border: 0, background: "transparent", fontWeight: 700, cursor: "pointer", color: dashColumnFilters[key] ? "#1d4ed8" : "inherit" }}
+                          >
+                            {label}{dashColumnFilters[key] ? `: ${dashColumnFilters[key]}` : " ▾"}
+                          </button>
+                          {dashColumnOpen === key && (
+                            <div style={{ position: "absolute", zIndex: 20, left: 0, top: "100%", minWidth: 210, background: "#fff", border: "1px solid #cbd5e1", borderRadius: 6, boxShadow: "0 8px 18px rgba(0,0,0,.12)" }}>
+                              <input
+                                autoFocus
+                                placeholder={`Type ${label}`}
+                                value={dashColumnQuery}
+                                onChange={(e) => setDashColumnQuery(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Escape") {
+                                    setDashColumnOpen("");
+                                    setDashColumnQuery("");
+                                  }
+                                  if (e.key === "Enter") {
+                                    const match = (dashColumnOptions[key] || []).find((value) => value.toLowerCase().includes(dashColumnQuery.trim().toLowerCase()));
+                                    if (!match) return;
+                                    setDashColumnFilters((prev) => ({ ...prev, [key]: match }));
+                                    setDashColumnOpen("");
+                                    setDashColumnQuery("");
+                                    setDashPage(1);
+                                  }
+                                }}
+                                style={{ width: "100%", boxSizing: "border-box", border: 0, borderBottom: "1px solid #e5e7eb", padding: "6px 8px" }}
+                              />
+                              <div style={{ maxHeight: 180, overflowY: "auto" }}>
+                                <button type="button" style={{ display: "block", width: "100%", textAlign: "left", border: 0, background: "#fff", padding: "6px 8px" }} onClick={() => {
+                                  setDashColumnFilters((prev) => ({ ...prev, [key]: "" }));
+                                  setDashColumnOpen("");
+                                  setDashColumnQuery("");
+                                  setDashPage(1);
+                                }}>All</button>
+                                {(dashColumnOptions[key] || []).filter((value) => value.toLowerCase().includes(dashColumnQuery.trim().toLowerCase())).map((value) => (
+                                  <button type="button" key={value} style={{ display: "block", width: "100%", textAlign: "left", border: 0, borderTop: "1px solid #eef1f4", background: dashColumnFilters[key] === value ? "#eef4fb" : "#fff", padding: "6px 8px" }} onClick={() => {
+                                    setDashColumnFilters((prev) => ({ ...prev, [key]: value }));
+                                    setDashColumnOpen("");
+                                    setDashColumnQuery("");
+                                    setDashPage(1);
+                                  }}>{value}</button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ) : label}
+                    </th>
+                  );
+                })}
                 <th>Actions</th>
               </tr>
             </thead>
@@ -2931,43 +3430,110 @@ const totalDashPages = Math.ceil(quotes.length / dashPageSize) || 1;
 >
 
   Outside Sales Contact(s)
-
-  <div className="checkbox-group">
-
-    {[
-      "Mike Llorence",
-      "Phil Haas",
-      "Luke Hanzlik",
-      "Alex White",
-      "Mark Labitad",
-      "Rhiannon Canas",
-      "Megan McCabe",
-      "Hazel Caling",
-    ].map((name) => (
-      <label key={name} className="check-option">
-        <input
-          type="checkbox"
-checked={contactToArray(quoteForm.contact).includes(name)}
-          onChange={(e) => {
-const current = contactToArray(quoteForm.contact);
-
-            if (e.target.checked) {
-              current.push(name);
-            } else {
-              const index = current.indexOf(name);
-              if (index > -1) current.splice(index, 1);
-            }
-
-            setQuoteForm((prev) => ({
-              ...prev,
-              contact: current,
-            }));
-          }}
-        />
-
-        {name}
-      </label>
-    ))}
+  <style>{`
+    .sales-picker { position: relative; }
+    .sales-picker-box {
+      display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+      min-height: 36px; width: 100%; text-align: left; background: #fff;
+      border: 1px solid #cbd5e1; border-radius: 6px; padding: 4px 6px;
+    }
+    .sales-input {
+      flex: 1; min-width: 90px; border: 0; outline: none; background: transparent;
+      font-size: 13px; padding: 4px 2px;
+    }
+    .sales-empty { padding: 8px 10px; color: #64748b; font-size: 12px; }
+    .sales-chip {
+      display: inline-flex; align-items: center; gap: 4px;
+      background: #eef4fb; color: #1e3a5f; border-radius: 12px;
+      padding: 2px 4px 2px 8px; font-size: 12px; line-height: 1.2;
+    }
+    .sales-x {
+      border: 0; background: transparent; color: #64748b; cursor: pointer;
+      font-size: 14px; line-height: 1; padding: 0 4px;
+    }
+    .sales-x:hover { color: #b42318; }
+    .sales-menu {
+      position: absolute; z-index: 40; left: 0; right: 0; top: calc(100% + 4px);
+      background: #fff; border: 1px solid #cbd5e1; border-radius: 6px;
+      max-height: 180px; overflow-y: auto; box-shadow: 0 8px 18px rgba(0,0,0,.12);
+    }
+    .sales-row {
+      display: flex !important; flex-direction: row !important; align-items: center !important;
+      gap: 8px; padding: 6px 10px; margin: 0; text-align: left; cursor: pointer;
+    }
+    .sales-row input { margin: 0; width: auto; flex: 0 0 auto; }
+    .sales-row span { flex: 1; }
+  `}</style>
+  <div className="sales-picker" ref={outsideSalesRef}>
+    <div className="sales-picker-box">
+      {contactToArray(quoteForm.contact).map((name) => (
+        <span key={name} className="sales-chip">
+          {name}
+          <button
+            type="button"
+            className="sales-x"
+            title={"Remove " + name}
+            onClick={() => {
+              const current = contactToArray(quoteForm.contact).filter((x) => x !== name);
+              setQuoteForm((prev) => ({ ...prev, contact: current }));
+            }}
+          >
+            ×
+          </button>
+        </span>
+      ))}
+      <input
+        className="sales-input"
+        placeholder={contactToArray(quoteForm.contact).length ? "" : "Type a name"}
+        value={salesQuery}
+        onFocus={() => setOutsideSalesOpen(true)}
+        onChange={(e) => {
+          setSalesQuery(e.target.value);
+          setOutsideSalesOpen(true);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            const query = salesQuery.trim().toLowerCase();
+            const match = outsideSalesNames.find((name) => name.toLowerCase().includes(query)) || salesQuery.trim();
+            if (!match) return;
+            const current = contactToArray(quoteForm.contact);
+            if (!current.includes(match)) current.push(match);
+            setQuoteForm((prev) => ({ ...prev, contact: current }));
+            setSalesQuery("");
+            setOutsideSalesOpen(false);
+          }
+        }}
+      />
+    </div>
+    {outsideSalesOpen && (
+      <div className="sales-menu">
+        {outsideSalesNames
+          .filter((name) => name.toLowerCase().includes(salesQuery.trim().toLowerCase()))
+          .map((name) => (
+            <label key={name} className="sales-row">
+              <input
+                type="checkbox"
+                checked={contactToArray(quoteForm.contact).includes(name)}
+                onChange={(e) => {
+                  const current = contactToArray(quoteForm.contact);
+                  if (e.target.checked) {
+                    if (!current.includes(name)) current.push(name);
+                  } else {
+                    const index = current.indexOf(name);
+                    if (index > -1) current.splice(index, 1);
+                  }
+                  setQuoteForm((prev) => ({ ...prev, contact: current }));
+                }}
+              />
+              <span>{name}</span>
+            </label>
+          ))}
+        {outsideSalesNames.filter((name) => name.toLowerCase().includes(salesQuery.trim().toLowerCase())).length === 0 && (
+          <div className="sales-empty">No match. Press Enter to add this name.</div>
+        )}
+      </div>
+    )}
   </div>
 </label>
 
@@ -3202,415 +3768,324 @@ const current = contactToArray(quoteForm.contact);
     </div>
   )}
 
-  <form className="card line-grid" onSubmit={saveLineItem}>
-    <h3>Line Item {activeQuote ? `for ${activeQuote.quote_number}` : ""}</h3>
-
-      <label>
-        Tag
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: 6,
-            margin: "6px 0 8px",
-            alignItems: "center",
-          }}
-        >
-          <span style={{ fontSize: 12, color: "#555" }}>Select text, then:</span>
-          <button type="button" className="btn secondary" onClick={() => applyFieldStyle("tag", "highlight")}>Highlight</button>
-        </div>
-        <textarea
-          ref={tagRef}
-          className="tag-textarea"
-          name="tag"
-          placeholder="Highlight tag text, then pick a style"
-          value={lineItemForm.tag}
-          onChange={updateForm(setLineItemForm)}
-          rows={4}
-        />
-      </label>
-
-
-      <label>
-        Item / Model / Part #
-        <div className="lookup-field">
-          <input
-            name="item"
-            placeholder="Search item / model / part #"
-            value={lineItemForm.item}
-            onChange={(e) => searchLineProducts(e.target.value)}
-          />
-
-          {lineProductResults.length > 0 && (
-            <div className="lookup-results">
-              {lineProductResults.slice(0, 8).map((p) => (
-                <button
-                  type="button"
-                  key={p.id}
-                  className="lookup-option"
-                  onClick={() => selectLineProduct(p)}
-                >
-                  <strong>
-  {[p.category, p.part_number, p.model, p.name]
-    .filter(Boolean)
-    .join(" | ")}
-</strong>
-<span>
-  {[p.vendor, p.series]
-    .filter(Boolean)
-    .join(" | ")}
-</span>
-
-<small>
-  {p.description?.substring(0, 80)}
-  {p.description?.length > 80 ? "..." : ""}
-</small>
-                </button>
-              ))}
-            </div>
-          )}
-
-          {lineProductSearchMessage && (
-            <div className="lookup-message">{lineProductSearchMessage}</div>
-          )}
-        </div>
-      </label>
-
-
-      <label>
-        Vendor
-        <input
-          name="vendor"
-          placeholder="Vendor"
-          value={lineItemForm.vendor}
-          onChange={updateForm(setLineItemForm)}
-        />
-      </label>
-
-      <label>
-        Qty
-        <input
-          name="qty"
-          type="number"
-          placeholder="Qty"
-          value={lineItemForm.qty}
-          onChange={updateForm(setLineItemForm)}
-        />
-      </label>
-
-      <label style={{ gridColumn: "span 2" }}>
-        Description
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: 6,
-            margin: "6px 0 8px",
-            alignItems: "center",
-          }}
-        >
-          <span style={{ fontSize: 12, color: "#555" }}>Select text, then:</span>
-          <button type="button" className="btn secondary" onClick={() => applyFieldStyle("description", "header")}>Header</button>
-          <button type="button" className="btn secondary" onClick={() => applyFieldStyle("description", "bold")}>Bold</button>
-          <button type="button" className="btn secondary" onClick={() => applyFieldStyle("description", "italic")}>Italic</button>
-          <button type="button" className="btn secondary" onClick={() => applyFieldStyle("description", "highlight")}>Highlight</button>
-          <button type="button" className="btn secondary" style={{ color: "#c00" }} onClick={() => applyFieldStyle("description", "red")}>Red</button>
-          <button type="button" className="btn secondary" style={{ color: "#1d4ed8" }} onClick={() => applyFieldStyle("description", "blue")}>Blue</button>
-          <button type="button" className="btn secondary" style={{ color: "#15803d" }} onClick={() => applyFieldStyle("description", "green")}>Green</button>
-          <button type="button" className="btn secondary" onClick={() => applyFieldStyle("description", "clear")}>Clear style</button>
-        </div>
-        <textarea
-          ref={descriptionRef}
-          className="description-box"
-          name="description"
-          placeholder="Highlight text above, then pick Bold / Highlight / a color"
-          value={lineItemForm.description}
-          onChange={updateForm(setLineItemForm)}
-        />
-      </label>
-
-
-      <label>
-        List Price
-        <input
-          name="list_price"
-          type="number"
-          step="0.01"
-          placeholder="List Price"
-          value={lineItemForm.list_price}
-          onChange={updateForm(setLineItemForm)}
-        />
-      </label>
-
-      <label>
-        Surcharge
-        <input
-          name="surcharge"
-          type="number"
-          step="0.0001"
-          placeholder="Surcharge .10"
-          value={lineItemForm.surcharge}
-          onChange={updateForm(setLineItemForm)}
-        />
-      </label>
-
-      <label>
-        Multiplier
-        <input
-          name="multiplier"
-          type="number"
-          step="0.0001"
-          placeholder="Multiplier"
-          value={lineItemForm.multiplier}
-          onChange={updateForm(setLineItemForm)}
-        />
-      </label>
-
-      <label>
-        Markup
-        <input
-          name="markup"
-          type="number"
-          step="0.0001"
-          placeholder="Markup .25"
-          value={lineItemForm.markup}
-          onChange={updateForm(setLineItemForm)}
-        />
-      </label>
-
-      <label>
-        Freight
-        <input
-          name="freight"
-          type="number"
-          step="0.01"
-          placeholder="Freight"
-          value={lineItemForm.freight}
-          onChange={updateForm(setLineItemForm)}
-        />
-      </label>
-
-      <label>
-        Startup
-        <input
-          name="startup"
-          type="number"
-          step="0.01"
-          placeholder="Startup"
-          value={lineItemForm.startup}
-          onChange={updateForm(setLineItemForm)}
-        />
-      </label>
-
-      <label>
-        Terms
-        <select
-          name="terms"
-          value={lineItemForm.terms}
-          onChange={updateForm(setLineItemForm)}
-        >
-          <option value="FFA">FFA</option>
-          <option value="FOB">FOB</option>
-        </select>
-      </label>
-
-<label>
-  Notes
-  <textarea
-    name="notes"
-    placeholder="Notes"
-    value={lineItemForm.notes}
-    onChange={updateForm(setLineItemForm)}
-    rows={4}                    // You can change this to 3 or 4 if you want more space
-    style={{ resize: "vertical", minHeight: "50px" }}
-  />
-</label>
-
-      <label className="check">
-        <input
-          type="checkbox"
-          name="included"
-          checked={lineItemForm.included}
-          onChange={updateForm(setLineItemForm)}
-        />
-        Included
-      </label>
-
-      <div className="calc-box">
-        Net: {money(calculatedPreview.net)} | Sell: {money(calculatedPreview.sell)} |
-        Total: {money(calculatedPreview.total)}
-      </div>
-
-<div className="button-row" style={{ marginTop: "15px" }}>
-  <button className="btn primary">
-    {editingLineItemId ? "Update Line Item" : "Add Line Item"}
-  </button>
-
-  {editingLineItemId && (
-    <button 
-      type="button" 
-      className="btn secondary"
-      onClick={() => {
-        setEditingLineItemId(null);
-        setLineItemForm(emptyLineItem);
-      }}
-    >
-      Cancel
-    </button>
-  )}
-</div>
-    </form>
-    </div>
-
-{/* <div style={{ 
-      gridColumn: "1 / -1", 
-      display: "flex", 
-      justifyContent: "center", 
-      alignItems: "center",
-      margin: "20px 0 25px 0",
-      padding: "12px 0",
-      backgroundColor: "#f8f9fa",
-      borderRadius: "8px"
-    }}>
-      <label className="check" style={{ 
-        fontSize: "1.15rem", 
-        fontWeight: "600", 
-        display: "flex", 
-        alignItems: "center", 
-        gap: "12px", 
-        cursor: "pointer" 
-      }}>
-        <input
-          type="checkbox"
-          name="showNoSpec"
-          checked={quoteForm.showNoSpec !== false}
-          onChange={updateForm(setQuoteForm)}
-          style={{ width: "22px", height: "22px", accentColor: "red" }}
-        />
-        No Specifications Provided
-      </label>
-    </div> */}
-
     {(activeQuote || isCopyDraft) && (
       <div className="card table-wrap">
         <h3>Line Items</h3>
 
+
+        <style>{`
+          .line-toolbar { margin-bottom: 8px; }
+          .line-edit-row { background: #f4fbf6; }
+          .style-dots { display: flex; gap: 4px; margin-bottom: 4px; }
+          .style-dots button { width: 22px; height: 22px; border: 1px solid #d5dbe2; background: #fff; border-radius: 4px; padding: 0; }
+          .dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+          .dot.hl { background: #ffe56a; }
+          .dot.red { background: #e23b3b; }
+          .dot.blue { background: #2f6fed; }
+          .dot.green { background: #1f9d55; }
+          .word-box { min-height: 54px; border: 1px solid #d0d7de; border-radius: 4px; padding: 6px; background: #fff; }
+          .word-box mark { background: #ffe56a; }
+          .search-box { width: 100%; min-height: 36px; max-height: 140px; resize: vertical; }
+          .styled-cell mark, .word-box mark { background: #ffe56a; }
+          .word-box .section, .description-cell .section { color: #325aa5; font-weight: 700; text-align: center; display: block; }
+          .table-wrap, .line-items-table, .line-items-table tbody, .line-items-table tr, .line-items-table td { overflow: visible !important; }
+          .line-items-table td { position: relative; vertical-align: top; }
+          .line-items-table .lookup-results {
+            position: absolute; z-index: 80; left: 0; top: calc(100% + 4px);
+            width: 360px; max-height: 180px; overflow-y: auto;
+            background: #fff; border: 1px solid #c5ced6; border-radius: 6px;
+            box-shadow: 0 8px 18px rgba(0,0,0,.16);
+          }
+          .vendor-lookup { position: relative; }
+          .vendor-results {
+            position: absolute; z-index: 130; left: 0; top: calc(100% + 2px);
+            width: 220px; max-height: 150px; overflow-y: auto; overflow-x: hidden;
+            background: #fff; border: 1px solid #c5ced6; border-radius: 6px;
+            box-shadow: 0 8px 18px rgba(0,0,0,.16);
+          }
+          .vendor-results button {
+            display: block; width: 100%; text-align: left; background: #fff;
+            border: 0; border-bottom: 1px solid #eef1f4; padding: 6px 8px;
+            white-space: normal; font-size: 12px; line-height: 1.3;
+          }
+          .vendor-results button:hover { background: #f3f7fb; }
+          .line-items-table .terms-col, .line-items-table .terms-select { min-width: 84px; }
+          .line-items-table .terms-select {
+            width: 84px; min-width: 84px; box-sizing: border-box; padding: 2px 4px;
+          }
+          .sales-picker { position: relative; }
+          .sales-picker-box {
+            display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+            min-height: 36px; width: 100%; text-align: left; background: #fff;
+            border: 1px solid #cbd5e1; border-radius: 6px; padding: 4px 6px; cursor: pointer;
+          }
+          .sales-placeholder { color: #64748b; font-size: 13px; }
+          .sales-chip {
+            display: inline-flex; align-items: center; gap: 4px;
+            background: #eef4fb; color: #1e3a5f; border-radius: 12px;
+            padding: 2px 4px 2px 8px; font-size: 12px; line-height: 1.2;
+          }
+          .sales-x {
+            border: 0; background: transparent; color: #64748b; cursor: pointer;
+            font-size: 14px; line-height: 1; padding: 0 4px;
+          }
+          .sales-x:hover { color: #b42318; }
+          .sales-menu {
+            position: absolute; z-index: 40; left: 0; right: 0; top: calc(100% + 4px);
+            background: #fff; border: 1px solid #cbd5e1; border-radius: 6px;
+            max-height: 180px; overflow-y: auto; box-shadow: 0 8px 18px rgba(0,0,0,.12);
+          }
+          .sales-row {
+            display: flex; flex-direction: row; align-items: center; gap: 8px;
+            padding: 6px 10px; margin: 0; text-align: left; cursor: pointer;
+          }
+          .sales-row input { margin: 0; flex: 0 0 auto; }
+          .sales-row span { flex: 1; }
+          .tag-cell .spec-size, .word-box .spec-size { font-size: 0.76em; font-weight: 400; }
+          .tag-preview.option-line, .tag-preview.option-line .tag-option, .tag-cell .tag-option { font-weight: 400 !important; font-size: 0.78em; white-space: nowrap; }
+          .tag-preview.budgetary-line, .tag-preview.budgetary-line .tag-budgetary, .tag-cell .tag-budgetary { font-weight: 400 !important; color: #c80000 !important; font-size: 0.86em; }
+          .word-box.tag-box { min-height: 72px; max-height: 140px; overflow: auto; white-space: pre-wrap; }
+          .row-actions { width: 118px; }
+          .row-actions .act-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+          .row-actions .icon-btn {
+            display: inline-flex; align-items: center; justify-content: center;
+            height: 24px; padding: 0 6px; width: 100%;
+            border-radius: 4px; border: 1px solid #d7dee6; background: #fff;
+            color: #334155; font-size: 11px; font-weight: 600; line-height: 1; cursor: pointer;
+          }
+          .row-actions .icon-btn.add { color: #166534; border-color: #b7e0c2; background: #f3fbf6; }
+          .row-actions .icon-btn.edit { color: #1d4ed8; border-color: #c9d7f5; background: #f5f8fd; }
+          .row-actions .icon-btn.notes { color: #854d0e; border-color: #ead7ae; background: #fffaf1; }
+          .row-actions .icon-btn.delete { color: #b42318; border-color: #f0c8c4; background: #fff6f5; }
+          .row-actions .icon-btn.cancel { color: #475569; border-color: #d7dee6; background: #f8fafc; }
+          .row-actions .icon-btn:hover { filter: brightness(0.97); }
+          .row-actions .icon-btn:disabled { opacity: 0.55; cursor: default; }
+          .col-resizer { position: absolute; top: 0; right: -3px; width: 8px; height: 100%; cursor: col-resize; }
+          .line-items-table .lookup-results button {
+            display: block; width: 100%; text-align: left; background: #fff;
+            border: 0; border-bottom: 1px solid #eef1f4; padding: 7px 8px; white-space: normal;
+          }
+          .line-items-table .lookup-results button:hover { background: #f3f7fb; }
+          .hit-title { display: block; font-weight: 700; }
+          .hit-vendor { display: block; color: #334155; font-size: 12px; }
+          .hit-desc { display: block; color: #64748b; font-size: 11px; }
+          .style-note { margin: 4px 0; padding: 6px 8px; background: #fff7ed; border: 1px solid #fdba74; color: #9a3412; border-radius: 4px; font-size: 12px; }
+          .styled-cell.tag-cell { font-weight: 700; }
+          .description-cell .bullet, .word-box .bullet { font-style: italic; } .description-cell .bullet.red, .word-box .bullet.red { color: #c80000; }
+          .description-cell strong { font-weight: 700; }
+        `}</style>
         <table className="line-items-table">
+          <colgroup>
+            <col style={{ width: 28 }} />
+            <col style={{ width: tagColWidth }} />
+            {editingLineItemId && <col style={{ width: 180 }} />}
+            <col style={{ width: 110 }} />
+            <col />
+            <col style={{ width: 88 }} />
+            <col style={{ width: 64 }} />
+            <col style={{ width: 88 }} />
+            <col style={{ width: 64 }} />
+            <col style={{ width: 72 }} />
+            <col style={{ width: 72 }} />
+            <col style={{ width: 96 }} />
+            <col style={{ width: 88 }} />
+            <col style={{ width: 48 }} />
+            <col style={{ width: 88 }} />
+            <col style={{ width: 140 }} />
+            <col style={{ width: 124 }} />
+          </colgroup>
           <thead>
             <tr>
               <th></th>
-                            {/* <th>Item</th>
-              <th>Vendor</th> */}
-              <th>Tag</th>
+              <th style={{ width: tagColWidth, position: "relative" }}>Tag<span className="col-resizer" onMouseDown={(e) => {
+                e.preventDefault();
+                const startX = e.clientX;
+                const startW = tagColWidth;
+                const move = (ev) => setTagColWidth(Math.max(140, startW + ev.clientX - startX));
+                const up = () => { window.removeEventListener("mousemove", move); window.removeEventListener("mouseup", up); };
+                window.addEventListener("mousemove", move);
+                window.addEventListener("mouseup", up);
+              }} /></th>
+              {editingLineItemId && <th>Search</th>}
+              <th>Vendor</th>
               <th>Description</th>
               <th>List</th>
-              <th>Surcharge</th>
-              <th>Multiplier</th>
+              <th>Mult.</th>
               <th>Net</th>
               <th>Markup</th>
-  
               <th>Startup</th>
-                          <th>Freight</th>
-              <th>Terms</th>
+              <th>Freight</th>
+              <th className="terms-col">Terms</th>
               <th>Sell</th>
-                            <th>Qty</th>
+              <th>Qty</th>
               <th>Total</th>
               <th>Notes</th>
               <th>Actions</th>
             </tr>
           </thead>
-
           <tbody>
-            {(isCopyDraft ? draftCopiedLineItems : activeQuote.line_items || []).map((item, index) => (
-              <tr key={item.id}>
-                <td
-                  draggable
-                  onDragStart={() => setDraggedLineItem(item.id)}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={() => dropLineItem(item.id)}
-                  className="drag"
-                >
-                  ☰
-                </td>
-                {/* <td>{item.item}</td>
-                <td>{item.vendor}</td> */}
-                <td>{item.tag}</td>
-
-             
-
-                <td className="description-cell">{getLineDescription(item)}</td>
-
-                <td>{money(item.list_price)}</td>
-
-                <td>
-                  {item.surcharge
-                    ? `${(Number(item.surcharge) * 100).toFixed(0)}%`
-                    : ""}
-                </td>
-
-                <td>{item.multiplier || ""}</td>
-                <td>{money(item.net_cost)}</td>
-
-                <td>
-                  {item.markup
-                    ? `${(Number(item.markup) * 100).toFixed(0)}%`
-                    : ""}
-                </td>
-
-             
-                <td>{money(item.startup)}</td>
-                   <td>{money(item.freight)}</td>
-                <td>{item.terms || ""}</td>
-                <td>{item.included ? "Included" : money(item.sell_price)}</td>
-                   <td>{item.qty}</td>
-                <td>{item.included ? "Included" : money(item.total_price)}</td>
-                <td>{item.notes}</td>
-
-                <td>
-                  <button
-                    className="btn edit"
-                    type="button"
-                    onClick={() => editLineItem(item)}
-                  >
-                    Edit
-                  </button>
-
-{!["notes", "startup", "freight", "adders"].includes(
-  String(item.item || "").toLowerCase()
-) && (
-  <button
-    className="btn secondary"
-    type="button"
-    onClick={() => openNotesModal(item)}
-  >
-    Notes
-  </button>
-)}
-
-<button
-  className="btn delete"
-  type="button"
-  disabled={deletingLineItemId === item.id}
-  onClick={() => {
-    if (isCopyDraft) {
-      setDraftCopiedLineItems((prev) =>
-        prev.filter((_, i) => i !== index)
-      );
-    } else {
-      deleteLineItem(item.id);
-    }
-  }}
->
-  {deletingLineItemId === item.id ? "Deleting..." : "Delete"}
-</button>
-                </td>
-              </tr>
-            ))}
+            {(() => {
+              const rows = isCopyDraft ? draftCopiedLineItems : (activeQuote.line_items || []);
+              const editor = (
+                <tr className="line-edit-row" key="line-editor">
+                  <td>≡</td>
+                  <td>
+                    <div className="style-dots">
+                      <button type="button" title="Highlight" onClick={() => applyWordStyle("tag", "highlight")}><span className="dot hl" /></button>
+                    </div>
+                    <div
+                      ref={tagRef}
+                      className="word-box tag-box"
+                      contentEditable
+                      suppressContentEditableWarning
+                      onInput={() => syncStyledField("tag")}
+                    />
+                  </td>
+                  <td>
+                    <div className="lookup-field">
+                    <textarea
+                      className="search-box"
+                      placeholder="Search item, model, part #, or description"
+                      value={lineSearchText}
+                      onChange={(e) => {
+                        setLineSearchText(e.target.value);
+                        searchLineProducts(e.target.value);
+                      }}
+                    />
+                    {lineProductResults.length > 0 && (
+                      <div className="lookup-results">
+                        {lineProductResults.slice(0, 20).map((p) => (
+                          <button
+                            type="button"
+                            key={p.id}
+                            onClick={() => {
+                              selectLineProduct(p);
+                              setLineSearchText("");
+                              fillStyledFields(p.tag || lineItemForm.tag, p.description || "");
+                            }}
+                          >
+                            <span className="hit-title">{[p.category || p.type, p.part_number, p.model].filter(Boolean).join(" | ") || p.name}</span>
+                            <span className="hit-vendor">{p.vendor || p.manufacturer || ""}</span>
+                            <span className="hit-desc">{String(p.description || "").slice(0, 110)}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    </div>
+                  </td>
+                  <td>
+                    <div className="vendor-lookup">
+                      <input
+                        placeholder="Vendor"
+                        value={lineItemForm.vendor}
+                        onChange={(e) => searchLineVendors(e.target.value)}
+                      />
+                      {lineVendorResults.length > 0 && (
+                        <div className="vendor-results">
+                          {lineVendorResults.slice(0, 20).map((c) => (
+                            <button type="button" key={c.id} onClick={() => {
+                              setLineItemForm((prev) => ({ ...prev, vendor: c.name }));
+                              setLineVendorResults([]);
+                            }}>{c.name}</button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </td>
+                  <td>
+                    <div className="style-dots">
+                      <button type="button" title="Header" onClick={() => applyWordStyle("description", "header")}>H</button>
+                      <button type="button" title="Bold" onClick={() => applyWordStyle("description", "bold")}><b>B</b></button>
+                      <button type="button" title="Italic" onClick={() => applyWordStyle("description", "italic")}><i>I</i></button>
+                      <button type="button" title="Highlight" onClick={() => applyWordStyle("description", "highlight")}><span className="dot hl" /></button>
+                      <button type="button" title="Red" onClick={() => applyWordStyle("description", "red")}><span className="dot red" /></button>
+                      <button type="button" title="Clear" onClick={() => applyWordStyle("description", "clear")}>⌫</button>
+                    </div>
+                    <div
+                      ref={descriptionRef}
+                      className="word-box description-box"
+                      contentEditable
+                      suppressContentEditableWarning
+                      onInput={() => syncStyledField("description")}
+                    />
+                  </td>
+                  <td><input name="list_price" value={lineItemForm.list_price} onChange={updateForm(setLineItemForm)} /></td>
+                  <td><input name="multiplier" value={lineItemForm.multiplier} onChange={updateForm(setLineItemForm)} /></td>
+                  <td></td>
+                  <td><input name="markup" value={lineItemForm.markup} onChange={updateForm(setLineItemForm)} /></td>
+                  <td><input name="startup" value={lineItemForm.startup} onChange={updateForm(setLineItemForm)} /></td>
+                  <td><input name="freight" value={lineItemForm.freight} onChange={updateForm(setLineItemForm)} /></td>
+                  <td>
+                    <select className="terms-select" name="terms" value={lineItemForm.terms} onChange={updateForm(setLineItemForm)}>
+                      <option>FFA</option>
+                      <option>FOB</option>
+                    </select>
+                  </td>
+                  <td></td>
+                  <td><input name="qty" value={lineItemForm.qty} onChange={updateForm(setLineItemForm)} /></td>
+                  <td></td>
+                  <td><textarea name="notes" value={lineItemForm.notes} onChange={updateForm(setLineItemForm)} /></td>
+                  <td className="row-actions">
+                    <div className="act-grid">
+                      <button className="icon-btn add" type="button" onClick={saveLineItem} disabled={lineItemBusy}>{lineItemBusy ? "Saving" : "Save"}</button>
+                      <button className="icon-btn cancel" type="button" onClick={cancelLineEdit}>Cancel</button>
+                    </div>
+                  </td>
+                </tr>
+              );
+              const out = [];
+              rows.forEach((item, index) => {
+                const open = editingLineItemId === item.id;
+                if (open) {
+                  out.push(editor);
+                  return;
+                }
+                if (!open) {
+                  out.push(
+                    <tr key={item.id}>
+                      <td draggable onDragStart={() => setDraggedLineItem(item.id)} onDragOver={(e) => e.preventDefault()} onDrop={() => dropLineItem(item.id)} className="drag">☰</td>
+                      <td className="styled-cell tag-cell" dangerouslySetInnerHTML={{ __html: pdfPreviewHtml(item.tag, "tag") }} />
+                      {editingLineItemId && <td></td>}
+                      <td>{item.vendor}</td>
+                      <td className="styled-cell description-cell" dangerouslySetInnerHTML={{ __html: pdfPreviewHtml(getLineDescription(item), "description") }} />
+                      <td>{money(item.list_price)}</td>
+                      <td>{item.multiplier || ""}</td>
+                      <td>{money(item.net_cost)}</td>
+                      <td>{item.markup ? `${(Number(item.markup) * 100).toFixed(0)}%` : ""}</td>
+                      <td>{money(item.startup)}</td>
+                      <td>{money(item.freight)}</td>
+                      <td>{item.terms || ""}</td>
+                      <td>{item.included ? "Included" : money(item.sell_price)}</td>
+                      <td>{item.qty}</td>
+                      <td>{item.included ? "Included" : money(item.total_price)}</td>
+                      <td>{item.notes}</td>
+                      <td className="row-actions">
+                        <div className="act-grid">
+                          <button className="icon-btn add" type="button" title="Add a line under this one" onClick={() => beginAddLine(item.id)}>+ Add</button>
+                          <button className="icon-btn edit" type="button" title="Edit this line" onClick={() => editLineItem(item)}>Edit</button>
+                          {!["notes", "startup", "freight", "adders"].includes(String(item.item || "").toLowerCase()) && (
+                            <button className="icon-btn notes" type="button" title="Line notes" onClick={() => openNotesModal(item)}>Notes</button>
+                          )}
+                          <button className="icon-btn delete" type="button" title="Delete this line" disabled={deletingLineItemId === item.id} onClick={() => {
+                            if (isCopyDraft) setDraftCopiedLineItems((prev) => prev.filter((_, i) => i !== index));
+                            else deleteLineItem(item.id);
+                          }}>{deletingLineItemId === item.id ? "..." : "Delete"}</button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                }
+                if (editingLineItemId === "new" && insertAfterId === item.id) out.push(editor);
+              });
+              if (editingLineItemId === "new" && !insertAfterId) out.push(editor);
+              return out;
+            })()}
           </tbody>
         </table>
       </div>
     )}
-  </section>
+  </div>
+</section>
 );
   }
 
@@ -3702,6 +4177,19 @@ const current = contactToArray(quoteForm.contact);
 //         <div className="toolbar">
 //           <input placeholder={`Search ${config.title}`} value={config.search} onChange={(e) => config.setSearch(e.target.value)} />
 //           <button className="btn primary" onClick={config.refresh}>Search</button>
+          <button
+            className="btn secondary"
+            type="button"
+            onClick={() => {
+              config.setSearch("");
+              if (type === "products") fetchProducts("");
+              else if (type === "notes") fetchNotes("");
+              else if (type === "companies") fetchCompanies("");
+              else fetchContacts("");
+            }}
+          >
+            Clear
+          </button>
 //         </div>
 
 //         <form className="card form-grid" onSubmit={(e) => saveCrud(e, config.endpoint, config.form, config.editingId, () => config.setForm(config.empty), config.refresh, config.setEditingId)}>
@@ -4075,7 +4563,7 @@ const current = contactToArray(quoteForm.contact);
 //           <table className="data-table">
 //             <thead>
 //               {/* <tr>{config.fields.slice(0, 8).map((f) => <th key={f}>{f}</th>)}<th>Actions</th></tr> */}
-//               <tr>{(config.displayFields || config.fields).slice(0, 8).map((f) => <th key={f}>{f}</th>)}<th>Actions</th></tr>
+//               <tr>{(config.displayFields || config.fields).slice(0, type === "products" ? 12 : 8).map((f) => <th key={f} style={f === "notes" ? { minWidth: 240 } : undefined}>{f === "list_price" ? "list" : f === "net_cost" ? "net" : f}</th>)}<th>Actions</th></tr>
 
 //             </thead>
  
@@ -4120,7 +4608,7 @@ const current = contactToArray(quoteForm.contact);
         title: "Products",
         search: productSearch,
         setSearch: setProductSearch,
-        refresh: () => fetchProducts(productSearch),
+        refresh: () => fetchProducts(productSearch, productFilters),
         endpoint: "products",
         form: productForm,
         setForm: setProductForm,
@@ -4129,6 +4617,7 @@ const current = contactToArray(quoteForm.contact);
         setEditingId: setEditingProductId,
         rows: products,
         fields: ["name", "category", "type", "series", "model", "part_number", "description", "notes", "tag", "list_price", "multiplier", "surcharge", "vendor", "manufacturer", ],
+        displayFields: ["name", "category", "type", "series", "model", "part_number", "description", "list_price", "multiplier", "net_cost", "notes", "vendor"],
       },
       notes: {
         title: "Notes Library",
@@ -4195,18 +4684,61 @@ displayFields: [
     }[type];
 
     // Pagination
-    const totalItems = config.rows.length;
+    const productQuery = type === "products" ? String(config.search || "").trim().toLowerCase() : "";
+    const visibleRows = type === "products"
+      ? config.rows.filter((row) => {
+          const filtersOk = ["category", "type", "series", "model", "vendor"].every((key) => {
+            return !productFilters[key] || String(row[key] || "").toLowerCase() === productFilters[key].toLowerCase();
+          });
+          if (!filtersOk) return false;
+          if (!productQuery) return true;
+          return ["name", "part_number", "model", "description", "notes"].some((key) => String(row[key] || "").toLowerCase().includes(productQuery));
+        })
+      : config.rows;
+    const totalItems = visibleRows.length;
     const totalPages = Math.ceil(totalItems / crudPageSize) || 1;
-    const pagedRows = config.rows.slice(
+    const pagedRows = visibleRows.slice(
       (crudPage - 1) * crudPageSize,
       crudPage * crudPageSize
     );
 
     return (
       <section className="screen">
-        <div className="toolbar">
-          <input placeholder={`Search ${config.title}`} value={config.search} onChange={(e) => config.setSearch(e.target.value)} />
-          <button className="btn primary" onClick={config.refresh}>Search</button>
+        <div className="toolbar" style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "nowrap" }}>
+          <input
+            placeholder={
+              type === "products"
+                ? "Search name, part number, model, description, or notes"
+                : type === "notes"
+                  ? "Search item, type, category, series, model, or note text"
+                  : type === "companies"
+                    ? "Search company name, type, or city"
+                    : "Search name, email, role, or company"
+            }
+            value={config.search}
+            onChange={(e) => config.setSearch(e.target.value)}
+            style={{ flex: 1 }}
+          />
+          <button className="btn primary" type="button" onClick={config.refresh} style={{ width: "auto", flex: "0 0 auto" }}>Search</button>
+          <button
+            className="btn secondary"
+            type="button"
+            style={{ width: "auto", flex: "0 0 auto" }}
+            onClick={() => {
+              config.setSearch("");
+              if (type === "products") {
+                const cleared = { category: "", type: "", series: "", model: "", vendor: "" };
+                setProductFilters(cleared);
+                setProductFilterOpen("");
+                fetchProducts("", cleared);
+              }
+              else if (type === "notes") fetchNotes("");
+              else if (type === "companies") fetchCompanies("");
+              else fetchContacts("");
+            }}
+          >
+            Clear
+          </button>
         </div>
 
         <form className="card form-grid" onSubmit={(e) => saveCrud(e, config.endpoint, config.form, config.editingId, () => config.setForm(config.empty), config.refresh, config.setEditingId)}>
@@ -4530,15 +5062,104 @@ return (
         </form>
 
         <div className="card table-wrap">
+          {type === "products" && Object.values(productFilters).some(Boolean) && (
+            <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8, padding: "8px 10px 0" }}>
+              <span style={{ color: "#475569", fontSize: 12 }}>
+                {Object.entries(productFilters).filter(([, value]) => value).map(([key, value]) => `${key}: ${value}`).join(" · ")}
+              </span>
+              <button
+                type="button"
+                className="btn secondary"
+                style={{ width: "auto", padding: "4px 10px" }}
+                onClick={() => {
+                  setProductFilters({ category: "", type: "", series: "", model: "", vendor: "" });
+                  setProductFilterOpen("");
+                  setCrudPage(1);
+                }}
+              >
+                Clear filter
+              </button>
+            </div>
+          )}
           <table className="data-table">
             <thead>
-              <tr>{(config.displayFields || config.fields).slice(0, 8).map((f) => <th key={f}>{f}</th>)}<th>Actions</th></tr>
+              <tr>{(config.displayFields || config.fields).slice(0, type === "products" ? 12 : 8).map((f) => {
+                const label = f === "list_price" ? "list" : f === "net_cost" ? "net" : f;
+                const canFilter = type === "products" && ["category", "type", "series", "model", "vendor"].includes(f);
+                return (
+                  <th key={f} style={{ width: f === "notes" ? 160 : f === "description" ? 220 : undefined }}>
+                    {canFilter ? (
+                      <div ref={productFilterOpen === f ? productFilterRef : null} style={{ position: "relative" }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setProductFilterQuery("");
+                            setProductFilterOpen((open) => open === f ? "" : f);
+                          }}
+                          style={{ border: 0, background: "transparent", fontWeight: 700, cursor: "pointer", color: productFilters[f] ? "#1d4ed8" : "inherit" }}
+                        >
+                          {label}{productFilters[f] ? `: ${productFilters[f]}` : " ▾"}
+                        </button>
+                        {productFilterOpen === f && (
+                          <div style={{ position: "absolute", zIndex: 20, left: 0, top: "100%", minWidth: 200, background: "#fff", border: "1px solid #cbd5e1", borderRadius: 6, boxShadow: "0 8px 18px rgba(0,0,0,.12)" }}>
+                            <input
+                              autoFocus
+                              placeholder={`Type ${label}`}
+                              value={productFilterQuery}
+                              onChange={(e) => setProductFilterQuery(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Escape") {
+                                  setProductFilterOpen("");
+                                  setProductFilterQuery("");
+                                }
+                                if (e.key === "Enter") {
+                                  const match = (productFilterOptions[f] || []).find((value) => value.toLowerCase().includes(productFilterQuery.trim().toLowerCase()));
+                                  if (!match) return;
+                                  setProductFilters({ ...productFilters, [f]: match });
+                                  setProductFilterOpen("");
+                                  setProductFilterQuery("");
+                                  setCrudPage(1);
+                                }
+                              }}
+                              style={{ width: "100%", boxSizing: "border-box", border: 0, borderBottom: "1px solid #e5e7eb", padding: "6px 8px" }}
+                            />
+                            <div style={{ maxHeight: 180, overflowY: "auto" }}>
+                              <button type="button" style={{ display: "block", width: "100%", textAlign: "left", border: 0, background: "#fff", padding: "6px 8px" }} onClick={() => {
+                                const next = { ...productFilters, [f]: "" };
+                                setProductFilters(next);
+                                setProductFilterOpen("");
+                                setProductFilterQuery("");
+                                setCrudPage(1);
+                              }}>All</button>
+                              {(productFilterOptions[f] || []).filter((value) => value.toLowerCase().includes(productFilterQuery.trim().toLowerCase())).map((value) => (
+                                <button type="button" key={value} style={{ display: "block", width: "100%", textAlign: "left", border: 0, borderTop: "1px solid #eef1f4", background: productFilters[f] === value ? "#eef4fb" : "#fff", padding: "6px 8px" }} onClick={() => {
+                                  const next = { ...productFilters, [f]: value };
+                                  setProductFilters(next);
+                                  setProductFilterOpen("");
+                                  setProductFilterQuery("");
+                                  setCrudPage(1);
+                                }}>{value}</button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : label}
+                  </th>
+                );
+              })}<th>Actions</th></tr>
             </thead>
             <tbody>
   {pagedRows.map((row) => (
     <tr key={row.id}>
-      {(config.displayFields || config.fields).slice(0, 8).map((f) => (
-        <td key={f}>{String(row[f] ?? "")}</td>
+      {(config.displayFields || config.fields).slice(0, type === "products" ? 12 : 8).map((f) => (
+        <td key={f} style={f === "notes" ? { width: 160, maxWidth: 180, whiteSpace: "normal" } : f === "description" ? { maxWidth: 240, whiteSpace: "normal" } : undefined}>{
+          f === "net_cost"
+            ? (Number(row.list_price || 0) * (1 + Number(row.surcharge || 0)) * Number(row.multiplier || 1)).toFixed(2)
+            : f === "list_price"
+              ? Number(row[f] || 0).toFixed(2)
+              : String(row[f] ?? "")
+        }</td>
       ))}
       <td>
         <button
