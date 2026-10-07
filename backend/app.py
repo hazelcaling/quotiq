@@ -37,7 +37,10 @@ app.config.update(
 )
 
 
-CORS(app, supports_credentials=True, origins=["https://quotiq.onrender.com", "http://localhost:5173", "http://127.0.0.1:5173"])
+CORS(app, supports_credentials=True, origins=["https://quotiq.onrender.com", 
+"http://localhost:5173", 
+"http://127.0.0.1:5173"
+])
 db.init_app(app)
 
 with app.app_context():
