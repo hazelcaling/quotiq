@@ -3770,7 +3770,14 @@ const totalDashPages = Math.ceil(visibleQuotes.length / dashPageSize) || 1;
 
     {(activeQuote || isCopyDraft) && (
       <div className="card table-wrap">
-        <h3>Line Items</h3>
+        <div className="line-toolbar" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 8 }}>
+          <h3 style={{ margin: 0 }}>Line Items</h3>
+          {(isCopyDraft ? draftCopiedLineItems : (activeQuote.line_items || [])).length === 0 && (
+            <button className="btn primary" type="button" onClick={() => beginAddLine()}>
+              Add Line Item
+            </button>
+          )}
+        </div>
 
 
         <style>{`
@@ -3812,6 +3819,10 @@ const totalDashPages = Math.ceil(visibleQuotes.length / dashPageSize) || 1;
           .line-items-table .terms-col, .line-items-table .terms-select { min-width: 84px; }
           .line-items-table .terms-select {
             width: 84px; min-width: 84px; box-sizing: border-box; padding: 2px 4px;
+          }
+          .line-items-table .live-calc {
+            white-space: nowrap; font-variant-numeric: tabular-nums;
+            color: #16324f; font-weight: 600; padding-top: 8px;
           }
           .sales-picker { position: relative; }
           .sales-picker-box {
@@ -4011,7 +4022,7 @@ const totalDashPages = Math.ceil(visibleQuotes.length / dashPageSize) || 1;
                   </td>
                   <td><input name="list_price" value={lineItemForm.list_price} onChange={updateForm(setLineItemForm)} /></td>
                   <td><input name="multiplier" value={lineItemForm.multiplier} onChange={updateForm(setLineItemForm)} /></td>
-                  <td></td>
+                  <td className="live-calc">{money(calculatedPreview.net)}</td>
                   <td><input name="markup" value={lineItemForm.markup} onChange={updateForm(setLineItemForm)} /></td>
                   <td><input name="startup" value={lineItemForm.startup} onChange={updateForm(setLineItemForm)} /></td>
                   <td><input name="freight" value={lineItemForm.freight} onChange={updateForm(setLineItemForm)} /></td>
@@ -4021,9 +4032,9 @@ const totalDashPages = Math.ceil(visibleQuotes.length / dashPageSize) || 1;
                       <option>FOB</option>
                     </select>
                   </td>
-                  <td></td>
+                  <td className="live-calc">{lineItemForm.included ? "Included" : money(calculatedPreview.sell)}</td>
                   <td><input name="qty" value={lineItemForm.qty} onChange={updateForm(setLineItemForm)} /></td>
-                  <td></td>
+                  <td className="live-calc">{lineItemForm.included ? "Included" : money(calculatedPreview.total)}</td>
                   <td><textarea name="notes" value={lineItemForm.notes} onChange={updateForm(setLineItemForm)} /></td>
                   <td className="row-actions">
                     <div className="act-grid">
@@ -4082,6 +4093,11 @@ const totalDashPages = Math.ceil(visibleQuotes.length / dashPageSize) || 1;
             })()}
           </tbody>
         </table>
+        {(isCopyDraft ? draftCopiedLineItems : (activeQuote.line_items || [])).length === 0 && editingLineItemId !== "new" && (
+          <p style={{ margin: "10px 0 0", color: "#64748b" }}>
+            No line items yet. Click Add Line Item to add the first one.
+          </p>
+        )}
       </div>
     )}
   </div>
